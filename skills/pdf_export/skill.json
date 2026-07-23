@@ -1,0 +1,20 @@
+{
+  "name": "pdf_export",
+  "description": "Convert Markdown text to a PDF file",
+  "tools": [
+    {
+      "name": "export_pdf",
+      "description": "Render Markdown text to a PDF file using the system's installed Chrome (handles Japanese/CJK text correctly, unlike most Python PDF libraries which need manual font setup). Supports headings, lists, tables, code blocks, bold/italic, and links.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "markdown": { "type": "string", "description": "The Markdown source to render." },
+          "output_path": { "type": "string", "description": "Absolute path to write the PDF to, e.g. /Users/you/Desktop/memo.pdf" },
+          "title": { "type": "string", "description": "Optional document title, shown at the top of the page." }
+        },
+        "required": ["markdown", "output_path"]
+      },
+      "command": "node export_pdf.js"
+    }
+  ]
+}

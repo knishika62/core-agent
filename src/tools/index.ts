@@ -213,7 +213,20 @@ export async function executeToolCall(call: ToolCall, ctx: ToolContext): Promise
   try {
     args = call.arguments ? JSON.parse(call.arguments) : {};
   } catch (err: any) {
-    return { content: `Tool error: invalid arguments JSON: ${err.message}\n`, isError: true };
+    // The most common real cause isn't a formatting mistake: the model's
+    // own response got cut off mid-string by a token/length limit while
+    // generating one huge tool call (e.g. a full file's contents as a
+    // single `write` argument) — the resulting JSON is truncated and can
+    // never parse, no matter how it's retried the same way. A plain
+    // "invalid JSON" error gives no way to tell the two apart, so a
+    // regular user has no way to know what to do about it either.
+    const looksTruncated = /Unterminated string|Unexpected end of (JSON input|input)/i.test(err.message);
+    const hint = looksTruncated
+      ? " This looks like the response was cut off mid-generation (a token/length limit), not a formatting mistake — " +
+        "retrying the exact same call will likely fail the same way. Break the work into multiple smaller tool calls " +
+        "instead: write a shorter first version, then use `edit` to add each additional section afterward."
+      : "";
+    return { content: `Tool error: invalid arguments JSON: ${err.message}.${hint}\n`, isError: true };
   }
 
   const pre = await runPreToolUseHooks(ctx.cwd, call.name, call.arguments ?? "{}");

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { createInterface } from "node:readline/promises";
+import { emitKeypressEvents } from "node:readline";
 import { stdin, stdout } from "node:process";
 import { execSync } from "node:child_process";
 import { homedir } from "node:os";
@@ -26,6 +27,7 @@ const REPL_COMMANDS: Record<string, string> = {
   "/reset": "Clear the current session's conversation history",
   "/exit": "Quit",
   "!<command>": "Run a shell command directly, bypassing the model (e.g. !ls, !cd ..)",
+  Esc: "Interrupt the LLM's response mid-stream (partial text is kept; running tools are not stopped)",
 };
 
 function formatRelativeTime(date: Date): string {
@@ -132,7 +134,12 @@ async function main() {
       try {
         return await rl.question(promptText);
       } catch (err: any) {
-        if (err?.code === "ERR_USE_AFTER_CLOSE") return null;
+        // readline/promises' question() rejects with this (not a real
+        // process-level SIGINT) when Ctrl-C is pressed while it's pending
+        // — treating it as EOF reuses the same clean-exit path (browser
+        // cleanup via main()'s .finally()) instead of an uncaught
+        // rejection printing a raw stack trace.
+        if (err?.code === "ERR_USE_AFTER_CLOSE" || err?.code === "ABORT_ERR") return null;
         throw err;
       }
     }
@@ -158,6 +165,20 @@ async function main() {
     }
     return answer === "y";
   };
+
+  // ESC-to-interrupt: only meaningful while a turn is actually in flight,
+  // so this stays null the rest of the time and the keypress handler below
+  // is a no-op — pressing ESC at the "> " prompt (or during a y/N
+  // confirmation) does nothing special.
+  let currentAbort: AbortController | null = null;
+  if (interactive) {
+    emitKeypressEvents(stdin, rl);
+    stdin.on("keypress", (_str, key) => {
+      if (key?.name === "escape" && currentAbort) {
+        currentAbort.abort();
+      }
+    });
+  }
 
   const cwd = process.cwd();
   const ctx = new ToolContext(cwd, confirm);
@@ -232,6 +253,8 @@ async function main() {
     messages.push({ role: "user", content: line });
 
     const renderer = new MarkdownStreamRenderer();
+    currentAbort = new AbortController();
+    if (interactive) console.log(color.dim("(Esc to interrupt)"));
     await runTurn(messages, ctx, {
       onTextDelta: (text) => renderer.write(text),
       onToolCall: (name, args) => {
@@ -251,7 +274,13 @@ async function main() {
         renderer.flush();
         console.log(color.error(`\n[LLM request failed: ${err instanceof Error ? err.message : String(err)}]`));
       },
+      abortSignal: currentAbort.signal,
     });
+    if (currentAbort.signal.aborted) {
+      renderer.flush();
+      console.log(color.warn("\n[Interrupted]"));
+    }
+    currentAbort = null;
     renderer.flush();
     stdout.write("\n\n");
 

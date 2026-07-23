@@ -10,3 +10,5 @@ sessions/
 .claude/settings.local.json
 md/
 CLAUDE.md
+# Personal, environment-dependent (requires a local ComfyUI server) — never published.
+skills/comfyui_image/

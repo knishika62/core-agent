@@ -13,6 +13,14 @@ interface CompletionResult {
   content: string;
   toolCalls: ToolCall[];
   finishReason: string;
+  /** Set when options.signal fired mid-stream: whatever text had already
+   *  streamed in is returned as-is (so it isn't lost), but any tool call
+   *  still being assembled is dropped rather than run half-specified. */
+  aborted?: boolean;
+}
+
+function isAbortError(err: unknown): boolean {
+  return err instanceof Error && err.name === "AbortError";
 }
 
 interface CompletionOptions {
@@ -179,47 +187,53 @@ async function anthropicChatCompletionStream(
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let aborted = false;
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
 
-    let newlineIndex: number;
-    while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
-      const line = buffer.slice(0, newlineIndex).trim();
-      buffer = buffer.slice(newlineIndex + 1);
-      if (!line.startsWith("data:")) continue;
-      const payload = line.slice(5).trim();
-      if (!payload) continue;
+      let newlineIndex: number;
+      while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
+        const line = buffer.slice(0, newlineIndex).trim();
+        buffer = buffer.slice(newlineIndex + 1);
+        if (!line.startsWith("data:")) continue;
+        const payload = line.slice(5).trim();
+        if (!payload) continue;
 
-      const evt = JSON.parse(payload);
-      if (evt.type === "content_block_start") {
-        blocks.set(evt.index, {
-          type: evt.content_block.type,
-          id: evt.content_block.id,
-          name: evt.content_block.name,
-          jsonBuf: "",
-        });
-      } else if (evt.type === "content_block_delta") {
-        const b = blocks.get(evt.index);
-        if (evt.delta.type === "text_delta") {
-          content += evt.delta.text;
-          options.onTextDelta?.(evt.delta.text);
-        } else if (evt.delta.type === "input_json_delta" && b) {
-          b.jsonBuf += evt.delta.partial_json;
+        const evt = JSON.parse(payload);
+        if (evt.type === "content_block_start") {
+          blocks.set(evt.index, {
+            type: evt.content_block.type,
+            id: evt.content_block.id,
+            name: evt.content_block.name,
+            jsonBuf: "",
+          });
+        } else if (evt.type === "content_block_delta") {
+          const b = blocks.get(evt.index);
+          if (evt.delta.type === "text_delta") {
+            content += evt.delta.text;
+            options.onTextDelta?.(evt.delta.text);
+          } else if (evt.delta.type === "input_json_delta" && b) {
+            b.jsonBuf += evt.delta.partial_json;
+          }
+        } else if (evt.type === "message_delta") {
+          if (evt.delta?.stop_reason) stopReason = evt.delta.stop_reason;
         }
-      } else if (evt.type === "message_delta") {
-        if (evt.delta?.stop_reason) stopReason = evt.delta.stop_reason;
       }
     }
+  } catch (err) {
+    if (!isAbortError(err)) throw err;
+    aborted = true;
   }
 
-  const toolCalls: ToolCall[] = [...blocks.values()]
-    .filter((b) => b.type === "tool_use")
-    .map((b) => ({ id: b.id!, name: b.name!, arguments: b.jsonBuf || "{}" }));
+  const toolCalls: ToolCall[] = aborted
+    ? []
+    : [...blocks.values()].filter((b) => b.type === "tool_use").map((b) => ({ id: b.id!, name: b.name!, arguments: b.jsonBuf || "{}" }));
 
-  return { content, toolCalls, finishReason: stopReason };
+  return { content, toolCalls, finishReason: aborted ? "aborted" : stopReason, aborted };
 }
 
 // ---- OpenAI /v1/chat/completions support ----
@@ -296,49 +310,60 @@ export async function chatCompletionStream(
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let aborted = false;
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
 
-    let newlineIndex: number;
-    while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
-      const line = buffer.slice(0, newlineIndex).trim();
-      buffer = buffer.slice(newlineIndex + 1);
-      if (!line.startsWith("data:")) continue;
-      const payload = line.slice(5).trim();
-      if (payload === "[DONE]") continue;
+      let newlineIndex: number;
+      while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
+        const line = buffer.slice(0, newlineIndex).trim();
+        buffer = buffer.slice(newlineIndex + 1);
+        if (!line.startsWith("data:")) continue;
+        const payload = line.slice(5).trim();
+        if (payload === "[DONE]") continue;
 
-      const chunk = JSON.parse(payload);
-      const delta = chunk.choices?.[0]?.delta;
-      if (!delta) continue;
+        const chunk = JSON.parse(payload);
+        const delta = chunk.choices?.[0]?.delta;
+        if (!delta) continue;
 
-      if (delta.content) {
-        content += delta.content;
-        options.onTextDelta?.(delta.content);
-      }
-      if (delta.tool_calls) {
-        for (const tcDelta of delta.tool_calls) {
-          const idx = tcDelta.index ?? 0;
-          const existing = toolCallsByIndex.get(idx) ?? { id: "", name: "", arguments: "" };
-          if (tcDelta.id) existing.id = tcDelta.id;
-          if (tcDelta.function?.name) existing.name = tcDelta.function.name;
-          if (tcDelta.function?.arguments) existing.arguments += tcDelta.function.arguments;
-          toolCallsByIndex.set(idx, existing);
+        if (delta.content) {
+          content += delta.content;
+          options.onTextDelta?.(delta.content);
+        }
+        if (delta.tool_calls) {
+          for (const tcDelta of delta.tool_calls) {
+            const idx = tcDelta.index ?? 0;
+            const existing = toolCallsByIndex.get(idx) ?? { id: "", name: "", arguments: "" };
+            if (tcDelta.id) existing.id = tcDelta.id;
+            if (tcDelta.function?.name) existing.name = tcDelta.function.name;
+            if (tcDelta.function?.arguments) existing.arguments += tcDelta.function.arguments;
+            toolCallsByIndex.set(idx, existing);
+          }
+        }
+        if (chunk.choices?.[0]?.finish_reason) {
+          finishReason = chunk.choices[0].finish_reason;
         }
       }
-      if (chunk.choices?.[0]?.finish_reason) {
-        finishReason = chunk.choices[0].finish_reason;
-      }
     }
+  } catch (err) {
+    if (!isAbortError(err)) throw err;
+    aborted = true;
   }
 
-  const toolCalls = [...toolCallsByIndex.values()].map((tc, i) => ({
-    id: tc.id || `call_${i}`,
-    name: tc.name,
-    arguments: tc.arguments,
-  }));
+  // A tool call still being assembled when the abort hit is incomplete by
+  // definition (partial JSON arguments) — dropped rather than run
+  // half-specified. The text that already streamed in is kept either way.
+  const toolCalls = aborted
+    ? []
+    : [...toolCallsByIndex.values()].map((tc, i) => ({
+        id: tc.id || `call_${i}`,
+        name: tc.name,
+        arguments: tc.arguments,
+      }));
 
-  return { content, toolCalls, finishReason };
+  return { content, toolCalls, finishReason: aborted ? "aborted" : finishReason, aborted };
 }

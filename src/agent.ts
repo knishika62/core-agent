@@ -10,6 +10,11 @@ export interface RunTurnOptions {
   onToolResult?: (name: string, content: string) => void;
   onCompact?: () => void;
   onError?: (err: unknown) => void;
+  /** ESC-to-interrupt: aborts only the in-flight LLM request. Whatever text
+   *  had already streamed in in is kept as the assistant's message (not
+   *  discarded), and the turn ends there — no tool call that was still
+   *  being assembled runs half-specified. */
+  abortSignal?: AbortSignal;
 }
 
 /**
@@ -41,6 +46,7 @@ export async function runTurn(
       result = await chatCompletionStream(endpoint, messages, {
         tools: toolDefinitions,
         onTextDelta: options.onTextDelta,
+        signal: options.abortSignal,
       });
     } catch (err) {
       options.onError?.(err);
@@ -57,6 +63,14 @@ export async function runTurn(
       content: result.content,
       toolCalls: result.toolCalls.length ? result.toolCalls : undefined,
     });
+
+    // ESC hit mid-stream: whatever text had already arrived is kept above,
+    // but the turn ends right here regardless of what the (possibly
+    // incomplete) response looked like — no tool call gets run off the
+    // back of a request the user just told the harness to abandon.
+    if (result.aborted) {
+      return messages;
+    }
 
     if (result.toolCalls.length === 0) {
       return messages;

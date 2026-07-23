@@ -1,0 +1,9 @@
+{
+  "name": "pdf_export-skill",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "marked": "^16.0.0",
+    "puppeteer-core": "^25.3.0"
+  }
+}
