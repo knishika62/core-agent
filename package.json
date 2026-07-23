@@ -1,0 +1,27 @@
+{
+  "name": "my-agent",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "OpenAI-compatible LLM backend swappable agent harness (rewrite of antirez/ds4's ds4_agent)",
+  "bin": {
+    "my-agent": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/cli.js",
+    "dev": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "puppeteer-core": "^25.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.10"
+  }
+}
