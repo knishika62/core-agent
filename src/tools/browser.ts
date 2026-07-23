@@ -153,6 +153,20 @@ export async function ensureWarmedUp(ctx: ToolContext, toolName: string): Promis
   return null;
 }
 
+/** Minimizing via CDP (Browser.setWindowBounds) was tried first, but Chrome
+ *  un-minimizes itself on its own whenever a new tab is created or a
+ *  navigation completes — during an active search/browse session that's
+ *  most of what happens, so the window kept popping back open. A small
+ *  window, tucked in a screen corner from the moment it launches, doesn't
+ *  fight that behavior at all: there's no "restore" to trigger since it was
+ *  never minimized. Size/position are configurable since screen resolutions
+ *  vary; defaults land it small and near the top-left corner. */
+function windowArgs(): string[] {
+  const size = process.env.CORE_AGENT_CHROME_WINDOW_SIZE ?? "480,360";
+  const position = process.env.CORE_AGENT_CHROME_WINDOW_POSITION ?? "0,0";
+  return [`--window-size=${size}`, `--window-position=${position}`];
+}
+
 /** Even after waiting for "disconnected" in ensureWarmedUp, the OS can lag
  *  a little further behind releasing the profile directory's lock file —
  *  retrying a few times with a short pause covers that remaining gap
@@ -165,7 +179,7 @@ async function launchWithRetry(profileDir: string): Promise<Browser> {
         executablePath: findChromeExecutable(),
         headless: process.env.CORE_AGENT_CHROME_HEADLESS === "1",
         userDataDir: profileDir,
-        args: ["--remote-allow-origins=*"],
+        args: ["--remote-allow-origins=*", ...windowArgs()],
       });
     } catch (err: any) {
       const isLockConflict = String(err?.message ?? err).includes("already running");
@@ -176,7 +190,7 @@ async function launchWithRetry(profileDir: string): Promise<Browser> {
   throw new Error("unreachable");
 }
 
-export function getBrowser(): Promise<Browser> {
+export async function getBrowser(): Promise<Browser> {
   if (!browserPromise) {
     const profileDir = findProfileDir();
     if (!warned) {
