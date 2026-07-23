@@ -9,6 +9,8 @@ import { toolBash, toolBashStatus, toolBashStop } from "./bash.js";
 import { toolViewImage } from "./viewImage.js";
 import { toolVisitPage } from "./visitPage.js";
 import { toolGoogleSearch } from "./googleSearch.js";
+import { toolShowMedia } from "./showMedia.js";
+import { runPreToolUseHooks, runPostToolUseHooks } from "../hooks.js";
 
 export { ToolContext } from "./context.js";
 
@@ -155,9 +157,19 @@ export const toolDefinitions: ToolDefinition[] = [
       required: ["path_or_url"],
     },
   },
+  {
+    name: "show_media",
+    description:
+      "Open a local image, video, or audio file in the user's default application, so the user (not the model) can see/watch/hear it. This is a terminal session — there is no way to embed media inline — so use this whenever the user should look at or play a file you created or found.",
+    parameters: {
+      type: "object",
+      properties: { path: { type: "string" } },
+      required: ["path"],
+    },
+  },
 ];
 
-type ToolFn = (args: Record<string, unknown>, ctx: ToolContext) => Promise<ToolResult>;
+export type ToolFn = (args: Record<string, unknown>, ctx: ToolContext) => Promise<ToolResult>;
 
 const handlers: Record<string, ToolFn> = {
   read: toolRead,
@@ -172,7 +184,25 @@ const handlers: Record<string, ToolFn> = {
   view_image: toolViewImage,
   visit_page: toolVisitPage,
   google_search: toolGoogleSearch,
+  show_media: toolShowMedia,
 };
+
+/**
+ * Lets skills (src/skills.ts) add tools at startup without this module
+ * needing to know anything about skills. `toolDefinitions` and `handlers`
+ * are mutated in place (never reassigned), so every existing import of
+ * `toolDefinitions` — agent.ts's runTurn, cli.ts's /help — sees the
+ * addition automatically via ESM's live bindings.
+ */
+export function registerTool(definition: ToolDefinition, handler: ToolFn): boolean {
+  if (handlers[definition.name]) {
+    console.error(`[core-agent] skipping tool "${definition.name}": a tool with that name already exists`);
+    return false;
+  }
+  toolDefinitions.push(definition);
+  handlers[definition.name] = handler;
+  return true;
+}
 
 export async function executeToolCall(call: ToolCall, ctx: ToolContext): Promise<ToolResult> {
   const handler = handlers[call.name];
@@ -185,9 +215,20 @@ export async function executeToolCall(call: ToolCall, ctx: ToolContext): Promise
   } catch (err: any) {
     return { content: `Tool error: invalid arguments JSON: ${err.message}\n`, isError: true };
   }
-  try {
-    return await handler(args, ctx);
-  } catch (err: any) {
-    return { content: `Tool error: ${err.message}\n`, isError: true };
+
+  const pre = await runPreToolUseHooks(ctx.cwd, call.name, call.arguments ?? "{}");
+  if (pre.blocked) {
+    return { content: `Tool error: blocked by pre-tool-use hook: ${pre.reason}\n`, isError: true };
   }
+
+  let result: ToolResult;
+  try {
+    result = await handler(args, ctx);
+  } catch (err: any) {
+    result = { content: `Tool error: ${err.message}\n`, isError: true };
+  }
+
+  await runPostToolUseHooks(ctx.cwd, call.name, call.arguments ?? "{}", result.content, Boolean(result.isError));
+
+  return result;
 }

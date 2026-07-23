@@ -1,9 +1,10 @@
-import { spawn } from "node:child_process";
+import { spawn, execSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { ToolResult } from "../types.js";
 import { requireConfirmation, type BashJob, type ToolContext } from "./context.js";
+import { config } from "../config.js";
 
 const DEFAULT_TIMEOUT_SEC = 3600;
 const MAX_TIMEOUT_SEC = 24 * 3600;
@@ -28,9 +29,24 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+const isWindows = process.platform === "win32";
+
+/**
+ * Kills the whole process tree the job spawned, not just its own PID
+ * (a shell running "foo && bar" has children that would otherwise survive).
+ * POSIX: negative PID sends the signal to the whole process group we put
+ * the job in via `detached: true` below. Windows has no equivalent
+ * negative-PID trick, so `taskkill /t` (kill tree) is used instead — it's
+ * always forceful, so there's no real SIGTERM-then-SIGKILL staging there
+ * the way there is on POSIX; that's an accepted platform difference.
+ */
 function killGroup(job: BashJob, signal: NodeJS.Signals): void {
   try {
-    process.kill(-job.pid, signal);
+    if (isWindows) {
+      execSync(`taskkill /pid ${job.pid} /t /f`, { stdio: "ignore" });
+    } else {
+      process.kill(-job.pid, signal);
+    }
   } catch {
     // process may already be gone
   }
@@ -38,9 +54,12 @@ function killGroup(job: BashJob, signal: NodeJS.Signals): void {
 
 function spawnJob(command: string, timeoutSec: number, ctx: ToolContext): BashJob {
   const id = ctx.allocateBashJobId();
-  const child = spawn("/bin/sh", ["-c", command], {
+  // `shell: true` (no explicit shell binary) picks the OS-appropriate shell
+  // automatically — /bin/sh on POSIX (same as before), cmd.exe on Windows.
+  const child = spawn(command, {
     cwd: ctx.cwd,
-    detached: true,
+    shell: true,
+    detached: !isWindows,
     stdio: ["ignore", "pipe", "pipe"],
   });
 
@@ -49,7 +68,7 @@ function spawnJob(command: string, timeoutSec: number, ctx: ToolContext): BashJo
     pid: child.pid!,
     command,
     child,
-    outputPath: path.join(tmpdir(), `my-agent-bash-${id}-${Date.now()}`),
+    outputPath: path.join(tmpdir(), `core-agent-bash-${id}-${Date.now()}`),
     output: "",
     startTime: Date.now(),
     timeoutSec,
@@ -139,12 +158,31 @@ function formatObservation(job: BashJob): string {
   return lines.join("\n") + "\n";
 }
 
+// Matches a command that *is* a pip install invocation (optionally through
+// "python -m pip", optionally through some other interpreter/pip path) —
+// anchored to the start so it only fires when the whole command is the
+// install call itself, not one step buried in a longer "a && b" chain
+// (those fall through to running as typed, unredirected).
+const PIP_INSTALL_RE = /^\s*(?:\S*[\\/])?(?:python3?(?:\.exe)?\s+-m\s+)?pip3?(?:\.exe)?\s+install\b(.*)$/is;
+
 export async function toolBash(
   args: Record<string, unknown>,
   ctx: ToolContext,
 ): Promise<ToolResult> {
-  const command = args.command as string | undefined;
+  let command = args.command as string | undefined;
   if (!command) return { content: "Tool error: bash requires command\n", isError: true };
+
+  // Any package missing from the PYTHON_PATH venv is missing precisely
+  // because it never got pip-installed *there* — so every pip install this
+  // tool runs is forced through that venv's pip, unconditionally, no y/N.
+  // There's no legitimate case for wanting a different pip once a
+  // dedicated venv is configured: PYTHON_PATH means "this is where things
+  // get installed." Already-qualified commands that name the venv
+  // directly are left as-is (nothing to redirect).
+  if (config.pythonPath && !command.includes(path.dirname(config.pythonPath))) {
+    const match = command.match(PIP_INSTALL_RE);
+    if (match) command = `"${config.pythonPath}" -m pip install${match[1]}`;
+  }
 
   const denied = await requireConfirmation(ctx, "bash", `Run: ${command}`);
   if (denied) return denied;

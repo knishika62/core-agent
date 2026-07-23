@@ -9,7 +9,7 @@ let dir: string;
 let ctx: ToolContext;
 
 beforeEach(async () => {
-  dir = await mkdtemp(path.join(tmpdir(), "my-agent-read-"));
+  dir = await mkdtemp(path.join(tmpdir(), "core-agent-read-"));
   ctx = new ToolContext(dir);
   const lines = Array.from({ length: 10 }, (_, i) => `line${i + 1}`).join("\n") + "\n";
   await writeFile(path.join(dir, "f.txt"), lines, "utf-8");

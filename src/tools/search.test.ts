@@ -9,7 +9,7 @@ let dir: string;
 let ctx: ToolContext;
 
 beforeEach(async () => {
-  dir = await mkdtemp(path.join(tmpdir(), "my-agent-search-"));
+  dir = await mkdtemp(path.join(tmpdir(), "core-agent-search-"));
   ctx = new ToolContext(dir);
 });
 

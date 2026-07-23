@@ -14,12 +14,15 @@ import { loadProjectInstructions, buildSystemPrompt } from "./projectInstruction
 import { color } from "./cliColors.js";
 import { MarkdownStreamRenderer } from "./cliMarkdown.js";
 import { closeBrowser } from "./tools/browser.js";
-
-const BASE_SYSTEM_PROMPT = `You are a coding agent. Use the available tools (read, more, write, list, edit, search, bash, bash_status, bash_stop, view_image, visit_page, google_search) to accomplish the user's request. You cannot see images directly; call view_image if you need to look at one.`;
+import { loadSkills } from "./skills.js";
+import { loadHooksConfig } from "./hooks.js";
+import { runCronDaemon, scheduleCronJobs } from "./cronDaemon.js";
+import { baseSystemPrompt } from "./systemPrompt.js";
 
 const REPL_COMMANDS: Record<string, string> = {
-  "/help": "Show this help",
+  "/help, /?": "Show this help",
   "/list": "List saved sessions",
+  "/auto": "Toggle auto-approve for write/edit/bash/skill tools (or answer 'a' at any y/N prompt)",
   "/reset": "Clear the current session's conversation history",
   "/exit": "Quit",
   "!<command>": "Run a shell command directly, bypassing the model (e.g. !ls, !cd ..)",
@@ -101,8 +104,17 @@ function printHelp(): void {
 
 async function main() {
   const argv = process.argv.slice(2);
+
+  if (argv.includes("--cron")) {
+    await runCronDaemon(process.cwd());
+    return; // node-cron's internal timers keep the process alive
+  }
+
   const sessionName = parseSessionName(argv);
-  const skipConfirm = argv.includes("--yes") || argv.includes("-y");
+  // Mutable, not just an initial flag: `/auto` flips this mid-session, so a
+  // task that turns out to need a dozen bash/write calls in a row (e.g.
+  // iterating on a Python script) doesn't force answering y/N every time.
+  let autoMode = argv.includes("--yes") || argv.includes("-y");
 
   const rl = createInterface({ input: stdin, output: stdout });
 
@@ -128,26 +140,38 @@ async function main() {
     return done ? null : value;
   }
 
-  const confirm: ConfirmFn | undefined = skipConfirm
-    ? undefined
-    : async ({ tool, description, preview }) => {
-        console.log(color.warn(`\n[confirm] ${tool}: ${description}`));
-        if (preview) {
-          console.log(color.dim(preview.length > 500 ? preview.slice(0, 500) + "..." : preview));
-        }
-        if (!interactive) {
-          console.log(color.dim("(no TTY to ask for confirmation — denying; pass --yes to skip this gate)"));
-          return false;
-        }
-        const answer = await nextLine(color.warn("Approve? (y/N) "));
-        return (answer ?? "").trim().toLowerCase() === "y";
-      };
+  const confirm: ConfirmFn = async ({ tool, description, preview }) => {
+    if (autoMode) return true;
+    console.log(color.warn(`\n[confirm] ${tool}: ${description}`));
+    if (preview) {
+      console.log(color.dim(preview.length > 500 ? preview.slice(0, 500) + "..." : preview));
+    }
+    if (!interactive) {
+      console.log(color.dim("(no TTY to ask for confirmation — denying; pass --yes or use /auto to skip this gate)"));
+      return false;
+    }
+    const answer = ((await nextLine(color.warn("Approve? (y/N/a=always) "))) ?? "").trim().toLowerCase();
+    if (answer === "a" || answer === "always" || answer === "/auto") {
+      autoMode = true;
+      console.log(color.dim("Auto mode ON — write/edit/bash/skill tools will not ask for confirmation."));
+      return true;
+    }
+    return answer === "y";
+  };
 
   const cwd = process.cwd();
   const ctx = new ToolContext(cwd, confirm);
 
   const projectInstructions = await loadProjectInstructions(cwd);
-  const systemPrompt = buildSystemPrompt(BASE_SYSTEM_PROMPT, projectInstructions);
+  const systemPrompt = buildSystemPrompt(baseSystemPrompt(), projectInstructions);
+  const loadedSkills = await loadSkills(cwd);
+  const hooksConfig = await loadHooksConfig(cwd);
+  const hookCount = (hooksConfig.preToolUse?.length ?? 0) + (hooksConfig.postToolUse?.length ?? 0);
+  // Scheduled here too (not just in --cron mode): an interactive session is
+  // typically left open for a while, so that's a reasonable place for cron
+  // jobs to also run in the background rather than requiring a second,
+  // dedicated `--cron` process just for scheduling.
+  const cronScheduled = await scheduleCronJobs(cwd, systemPrompt);
 
   let messages: Message[];
   try {
@@ -155,15 +179,18 @@ async function main() {
     // Re-synced on every run: project instructions may have changed since
     // this session was last saved.
     messages[0] = { role: "system", content: systemPrompt };
-    console.log(`my-agent — model: ${config.main.model} @ ${config.main.baseUrl}`);
+    console.log(`core-agent — model: ${config.main.model} @ ${config.main.baseUrl}`);
     console.log(`Resumed session "${sessionName}" (${messages.length} messages).`);
   } catch {
     messages = [{ role: "system", content: systemPrompt }];
-    console.log(`my-agent — model: ${config.main.model} @ ${config.main.baseUrl}`);
+    console.log(`core-agent — model: ${config.main.model} @ ${config.main.baseUrl}`);
     console.log(`Starting new session "${sessionName}".`);
   }
   if (projectInstructions) console.log(color.dim("(loaded project instructions from AGENT.md)"));
-  if (skipConfirm) console.log(color.dim("(running with --yes: write/edit/bash will not ask for confirmation)"));
+  if (loadedSkills.length) console.log(color.dim(`(loaded skills: ${loadedSkills.join(", ")})`));
+  if (hookCount > 0) console.log(color.dim(`(loaded ${hookCount} hook(s) from .core-agent/hooks.json)`));
+  if (cronScheduled > 0) console.log(color.dim(`(scheduled ${cronScheduled} cron job(s) from .core-agent/cron.json)`));
+  if (autoMode) console.log(color.dim("(auto mode ON: write/edit/bash/skill tools will not ask for confirmation — /auto to toggle)"));
   console.log(color.dim("Type your message, /help for commands, /exit to quit.\n"));
 
   while (true) {
@@ -171,12 +198,23 @@ async function main() {
     if (line === null) break; // EOF (piped input exhausted, or closed TTY)
     const trimmed = line.trim();
     if (trimmed === "/exit") break;
-    if (trimmed === "/help") {
+    if (trimmed === "/help" || trimmed === "/?") {
       printHelp();
       continue;
     }
     if (trimmed === "/list") {
       await printSessionList(sessionName);
+      continue;
+    }
+    if (trimmed === "/auto") {
+      autoMode = !autoMode;
+      console.log(
+        color.dim(
+          autoMode
+            ? "Auto mode ON — write/edit/bash/skill tools will not ask for confirmation."
+            : "Auto mode OFF — confirmation prompts are back.",
+        ),
+      );
       continue;
     }
     if (trimmed === "/reset") {
@@ -208,6 +246,10 @@ async function main() {
       onCompact: () => {
         renderer.flush();
         console.log(color.dim("\n[history compacted to stay within context budget]"));
+      },
+      onError: (err) => {
+        renderer.flush();
+        console.log(color.error(`\n[LLM request failed: ${err instanceof Error ? err.message : String(err)}]`));
       },
     });
     renderer.flush();

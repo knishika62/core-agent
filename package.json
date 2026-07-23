@@ -1,25 +1,34 @@
 {
-  "name": "my-agent",
+  "name": "core-agent",
   "version": "0.0.1",
   "private": true,
   "type": "module",
   "description": "OpenAI-compatible LLM backend swappable agent harness (rewrite of antirez/ds4's ds4_agent)",
   "bin": {
-    "my-agent": "./dist/cli.js"
+    "core-agent": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/cli.js",
     "dev": "tsx src/cli.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "bundle": "esbuild src/cli.ts --bundle --platform=node --format=cjs --define:import.meta.url=import_meta_url --banner:js=\"const import_meta_url = require('url').pathToFileURL(__filename).href;\" --outfile=bundle/cli.cjs",
+    "package:macos": "npm run bundle && pkg bundle/cli.cjs --public --targets node20-macos-arm64 --output dist-bin/macos-arm64/core-agent",
+    "package:win": "npm run bundle && pkg bundle/cli.cjs --public --targets node22-win-x64 --output dist-bin/windows-x64/core-agent.exe",
+    "package": "npm run package:macos && npm run package:win"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
+    "node-cron": "^4.6.0",
+    "open": "^11.0.0",
     "puppeteer-core": "^25.3.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "@types/node-cron": "^3.0.11",
+    "@yao-pkg/pkg": "^6.21.0",
+    "esbuild": "^0.28.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^4.1.10"

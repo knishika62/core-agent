@@ -30,6 +30,11 @@ export const config = {
   // past which maybeCompact() summarizes older history. Conservative
   // default well under most models' context windows.
   maxContextTokens: Number(process.env.MAX_CONTEXT_TOKENS ?? 60_000),
+  // Absolute path to a Python interpreter (typically inside a venv the user
+  // manages themselves) the agent should be told to use for ad-hoc scripts,
+  // instead of reaching for whatever "python"/"python3" happens to be on
+  // PATH and pip-installing into it unprompted.
+  pythonPath: process.env.PYTHON_PATH ?? "",
 };
 
 export function visionConfigured(): boolean {

@@ -7,7 +7,7 @@ import { loadProjectInstructions, buildSystemPrompt } from "./projectInstruction
 let dir: string;
 
 beforeEach(async () => {
-  dir = await mkdtemp(path.join(tmpdir(), "my-agent-proj-"));
+  dir = await mkdtemp(path.join(tmpdir(), "core-agent-proj-"));
 });
 
 afterEach(async () => {

@@ -1,8 +1,12 @@
 node_modules/
 dist/
+dist-bin/
+bundle/
 .env
 sessions/
+.core-agent/
 *.log
 .DS_Store
 .claude/settings.local.json
 md/
+CLAUDE.md

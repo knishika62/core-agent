@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { ToolResult } from "../types.js";
 import type { ToolContext } from "./context.js";
-import { getBrowser } from "./browser.js";
+import { getBrowser, isGoogleBlockedUrl, ensureWarmedUp } from "./browser.js";
 
 const NAV_TIMEOUT_MS = 25_000;
 const MAX_CONTENT_CHARS = 900_000;
@@ -56,12 +56,37 @@ export async function toolVisitPage(
   const url = args.url as string | undefined;
   if (!url) return { content: "Tool error: visit_page requires url\n", isError: true };
 
+  // Same brand-new-profile problem google_search has: an untrusted profile
+  // reads as bot traffic. visit_page can be the very first browser call in
+  // a session just as easily as google_search can, so it needs the same
+  // gate — a warmup that only lived in google_search let visit_page launch
+  // straight past it.
+  const warmup = await ensureWarmedUp(ctx, "visit_page");
+  if (warmup) return warmup;
+
   let page;
   try {
     const browser = await getBrowser();
     page = await browser.newPage();
     await page.setViewport({ width: 1365, height: 900 });
-    await page.goto(url, { waitUntil: "networkidle2", timeout: NAV_TIMEOUT_MS });
+    const response = await page.goto(url, { waitUntil: "networkidle2", timeout: NAV_TIMEOUT_MS });
+    const finalUrl = page.url();
+
+    // visit_page takes an arbitrary URL, so a model that was just told by
+    // google_search to back off can end up here instead, pointed straight
+    // at a google.com search URL — same bot-check interstitial, and it
+    // deserves the same clear error rather than silently returning the
+    // interstitial's text as if it were real page content.
+    if (isGoogleBlockedUrl(finalUrl, response?.status())) {
+      return {
+        content:
+          "Tool error: this page was blocked by Google's automated-traffic check. " +
+          "Note: visit_page is not a workaround for google_search being blocked — both hit the same " +
+          "protection. Wait, space out requests, or ask the user to search manually.\n",
+        isError: true,
+      };
+    }
+
     // brief settle for late-rendering SPA content
     await new Promise((r) => setTimeout(r, 500));
 
@@ -70,6 +95,16 @@ export async function toolVisitPage(
       links: { text: string; href: string }[];
     };
     let content = markdown;
+    // The extractor above only looks for HTML elements (h1-h6/p/li/etc) —
+    // an RSS/XML feed, a JSON API response, or a plain-text file has none
+    // of those, so it comes back empty even though the page loaded fine.
+    // Falling back to the raw response body covers all of those cases at
+    // once without needing to sniff content-type (which isn't always
+    // present or accurate) — only kicks in when the HTML-shaped extraction
+    // genuinely found nothing to show.
+    if (!content.trim() && response) {
+      content = await response.text().catch(() => content);
+    }
     let truncated = false;
     if (content.length > MAX_CONTENT_CHARS) {
       content = content.slice(0, MAX_CONTENT_CHARS) + "\n[Content truncated by browser extractor.]";
@@ -98,7 +133,7 @@ function formatWithHeadPattern(markdown: string, forceSpill: boolean): ToolResul
   if (!forceSpill && bytes <= HEAD_BYTES && lines.length <= HEAD_LINES) {
     return { content: `<markdown>\n${markdown}\n</markdown>\n` };
   }
-  const outputPath = path.join(tmpdir(), `my-agent-web-${Date.now()}`);
+  const outputPath = path.join(tmpdir(), `core-agent-web-${Date.now()}`);
   writeFileSync(outputPath, markdown, "utf-8");
   const head = lines.slice(0, HEAD_LINES).join("\n").slice(0, HEAD_BYTES);
   return {

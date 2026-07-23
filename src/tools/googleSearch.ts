@@ -1,6 +1,6 @@
 import type { ToolResult } from "../types.js";
 import type { ToolContext } from "./context.js";
-import { getBrowser, isFreshProfile } from "./browser.js";
+import { getBrowser, isGoogleBlockedUrl, ensureWarmedUp } from "./browser.js";
 
 const NAV_TIMEOUT_MS = 25_000;
 const CONSENT_PATTERNS = ["accept all", "すべて承諾", "i agree", "同意する"];
@@ -46,27 +46,8 @@ export async function toolGoogleSearch(
   const query = args.query as string | undefined;
   if (!query) return { content: "Tool error: google_search requires query\n", isError: true };
 
-  // A brand-new browser profile has no cookies/session history, which reads
-  // as automated traffic to Google and gets blocked almost immediately.
-  // Rather than burn an attempt (and reinforce the "this is a bot" signal),
-  // open a real, visible window and ask the human to use it normally for a
-  // bit first — that's the actual signal bot detection is looking for, and
-  // it only needs to happen once: after this, the profile directory exists
-  // and this branch never triggers again.
-  const fresh = isFreshProfile();
-  if (fresh) {
-    const browser = await getBrowser();
-    const warmupPage = await browser.newPage();
-    await warmupPage.goto("https://www.google.com/", { waitUntil: "domcontentloaded" }).catch(() => {});
-    return {
-      content:
-        "google_search needs a browser profile with some real history before Google will trust " +
-        "automated searches from it — a brand-new one gets flagged immediately. A visible Chrome " +
-        "window has just been opened. Ask the user to browse normally in it for a couple of minutes " +
-        "(visit a few sites, optionally sign into their Google account), then try google_search again. " +
-        "This is a one-time setup step.\n",
-    };
-  }
+  const warmup = await ensureWarmedUp(ctx, "google_search");
+  if (warmup) return warmup;
 
   let page;
   try {
@@ -76,7 +57,7 @@ export async function toolGoogleSearch(
     const response = await page.goto(url, { waitUntil: "networkidle2", timeout: NAV_TIMEOUT_MS });
     const finalUrl = page.url();
 
-    if (finalUrl.includes("/sorry/") || response?.status() === 429) {
+    if (isGoogleBlockedUrl(finalUrl, response?.status())) {
       return {
         content:
           "Tool error: google_search was blocked by Google's automated-traffic check " +

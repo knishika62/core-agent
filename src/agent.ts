@@ -9,6 +9,7 @@ export interface RunTurnOptions {
   onToolCall?: (name: string, args: string) => void;
   onToolResult?: (name: string, content: string) => void;
   onCompact?: () => void;
+  onError?: (err: unknown) => void;
 }
 
 /**
@@ -31,10 +32,25 @@ export async function runTurn(
   for (let round = 0; round < config.maxToolRounds; round++) {
     if (await maybeCompact(messages)) options.onCompact?.();
 
-    const result = await chatCompletionStream(endpoint, messages, {
-      tools: toolDefinitions,
-      onTextDelta: options.onTextDelta,
-    });
+    // A transient network blip (DNS hiccup, TLS reset, etc.) talking to the
+    // LLM endpoint used to crash the whole process — killing an entire REPL
+    // session over one flaky request is far worse than just reporting the
+    // failure and letting the user retry.
+    let result;
+    try {
+      result = await chatCompletionStream(endpoint, messages, {
+        tools: toolDefinitions,
+        onTextDelta: options.onTextDelta,
+      });
+    } catch (err) {
+      options.onError?.(err);
+      const message = err instanceof Error ? err.message : String(err);
+      messages.push({
+        role: "assistant",
+        content: `[LLM request failed: ${message}. Send your message again to retry.]`,
+      });
+      return messages;
+    }
 
     messages.push({
       role: "assistant",

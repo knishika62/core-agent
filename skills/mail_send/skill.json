@@ -1,0 +1,20 @@
+{
+  "name": "mail_send",
+  "description": "Send email via SMTP",
+  "tools": [
+    {
+      "name": "send_mail",
+      "description": "Send an email via SMTP. `to` defaults to EMAIL_TO from the environment if omitted, so calls without an explicit recipient go to the configured default address.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "to": { "type": "string", "description": "Recipient email address. Defaults to EMAIL_TO if omitted." },
+          "subject": { "type": "string" },
+          "body": { "type": "string", "description": "Plain text body" }
+        },
+        "required": ["subject", "body"]
+      },
+      "command": "node send_mail.js"
+    }
+  ]
+}

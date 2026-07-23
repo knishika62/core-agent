@@ -20,6 +20,8 @@ export const color = {
   warn: wrap("33"),
   // Red: errors.
   error: wrap("31"),
+  // Green: success/progress notices (e.g. browser warmup finished).
+  success: wrap("32"),
   // Markdown rendering.
   bold: wrap("1"),
   italic: wrap("3"),
