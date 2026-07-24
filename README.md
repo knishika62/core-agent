@@ -36,14 +36,22 @@ in-process直結したCLIコーディングエージェント)を、任意のOpe
 
 どのJSON/設定ファイルがどこに置かれるかのまとめです(詳細は各セクション参照)。
 
+`.env`・`skills/`・`.core-agent/hooks.json`・`.core-agent/cron.json`は、**起動したディレクトリ
+(カレント)を先に見て、そこに無ければ`~/.core-agent`(グローバル、`CORE_AGENT_HOME`で変更可)に
+フォールバック**します。`npm run dev`をリポジトリ直下で実行する通常の開発フローはカレントの
+ファイルがそのまま使われ今まで通り、配布バイナリをPATHの通った場所に置いてどこからでも実行する
+場合はグローバル側が使われます。`skills/`だけは両方をスキャンして合算します(名前が衝突したら
+カレント優先)。カレントにも`~/.core-agent`にも`.env`が無い初回起動時は、`~/.core-agent/.env`を
+テンプレートから自動生成し、案内を出してキー入力待ちの上で終了します。
+
 | ファイル | 場所 | 用途 | 自動生成 |
 |---|---|---|---|
-| `.env` | プロジェクト直下 | APIキー・モデル・各種env var | されない(`.env.example`をコピー) |
-| `.core-agent/hooks.json` | 起動したディレクトリ直下 | tool実行前後のフック定義 | されない(使う場合のみ手動作成) |
-| `.core-agent/cron.json` | 起動したディレクトリ直下 | 定期実行ジョブ定義 | されない(使う場合のみ手動作成) |
-| `sessions/<name>.json` | 起動したディレクトリ直下の`sessions/` | 会話履歴(`--session <name>`ごと) | される(初回のやり取り後) |
-| `skills/<name>/skill.json` | `skills/<name>/` | skillが提供するツールの宣言 | されない(同梱または自作) |
-| ブラウザプロファイル | `~/.core-agent/browser`(ホームディレクトリ固定。`~`はWindowsでは`C:\Users\<ユーザー名>`) | `google_search`/`visit_page`用Chromeプロファイル | される(初回のブラウザ利用時) |
+| `.env` | カレント→`~/.core-agent`(フォールバック) | APIキー・モデル・各種env var | 初回起動時、無ければ`~/.core-agent/.env`にテンプレートを生成 |
+| `.core-agent/hooks.json` | カレントの`.core-agent/`→`~/.core-agent`(フォールバック) | tool実行前後のフック定義 | されない(使う場合のみ手動作成) |
+| `.core-agent/cron.json` | カレントの`.core-agent/`→`~/.core-agent`(フォールバック) | 定期実行ジョブ定義 | されない(使う場合のみ手動作成) |
+| `sessions/<name>.json` | 起動したディレクトリ直下の`sessions/`(フォールバック無し) | 会話履歴(`--session <name>`ごと) | される(初回のやり取り後) |
+| `skills/<name>/skill.json` | カレントの`skills/`+`~/.core-agent/skills/`(両方合算) | skillが提供するツールの宣言 | されない(同梱または自作) |
+| ブラウザプロファイル | `~/.core-agent/browser`(`CORE_AGENT_HOME`/ホームディレクトリ基準。`~`はWindowsでは`C:\Users\<ユーザー名>`) | `google_search`/`visit_page`用Chromeプロファイル | される(初回のブラウザ利用時) |
 
 ## インストール
 

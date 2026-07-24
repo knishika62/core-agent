@@ -1,9 +1,9 @@
 import { existsSync } from "node:fs";
-import { homedir } from "node:os";
 import path from "node:path";
 import puppeteer, { type Browser, type Page } from "puppeteer-core";
 import { requireConfirmation, type ToolContext } from "./context.js";
 import { color } from "../cliColors.js";
+import { globalConfigDir } from "../globalConfig.js";
 import type { ToolResult } from "../types.js";
 
 function chromeCandidates(): string[] {
@@ -61,7 +61,7 @@ function findChromeExecutable(): string {
 function findProfileDir(): string {
   const env = process.env.CORE_AGENT_CHROME_PROFILE;
   if (env) return env;
-  return path.join(homedir(), ".core-agent", "browser");
+  return path.join(globalConfigDir(), "browser");
 }
 
 /** Must be called before getBrowser() — puppeteer.launch() creates the

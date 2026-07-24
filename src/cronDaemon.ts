@@ -46,7 +46,8 @@ async function runCronJob(cwd: string, systemPrompt: string, job: CronJob): Prom
 }
 
 /**
- * Reads .core-agent/cron.json and schedules each valid job with node-cron.
+ * Reads cron.json (see loadCronConfig for the cwd -> global fallback) and
+ * schedules each valid job with node-cron.
  * Shared by both the dedicated `--cron` daemon and the normal interactive
  * REPL — a session left open is the common case, so cron jobs fire in the
  * background there too rather than requiring a separate always-on process
@@ -91,7 +92,9 @@ export async function runCronDaemon(cwd: string): Promise<void> {
 
   const scheduled = await scheduleCronJobs(cwd, systemPrompt);
   if (scheduled === 0) {
-    console.log("No cron jobs configured (expected .core-agent/cron.json with a \"jobs\" array). Exiting.");
+    console.log(
+      "No cron jobs configured (expected a cron.json with a \"jobs\" array, in .core-agent/ locally or in the global config dir). Exiting.",
+    );
   } else {
     console.log(`${scheduled} job(s) scheduled. Running until interrupted (Ctrl-C).`);
   }

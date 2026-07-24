@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -7,13 +7,21 @@ import { executeToolCall, toolDefinitions } from "./tools/index.js";
 import { ToolContext } from "./tools/context.js";
 
 let dir: string;
+let globalDir: string;
 
 beforeEach(async () => {
   dir = await mkdtemp(path.join(tmpdir(), "core-agent-skills-"));
+  // Points globalConfigDir() at a disposable temp dir instead of the real
+  // ~/.core-agent, so these tests don't depend on (or pollute) whatever
+  // happens to exist there on the machine running them.
+  globalDir = await mkdtemp(path.join(tmpdir(), "core-agent-skills-global-"));
+  vi.stubEnv("CORE_AGENT_HOME", globalDir);
 });
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await rm(dir, { recursive: true, force: true });
+  await rm(globalDir, { recursive: true, force: true });
 });
 
 async function writeSkill(cwd: string, skillName: string, toolName: string, scriptBody: string) {
@@ -96,5 +104,26 @@ describe("loadSkills", () => {
   it("ignores directories under skills/ that have no skill.json", async () => {
     await mkdir(path.join(dir, "skills", "not_a_skill"), { recursive: true });
     expect(await loadSkills(dir)).toEqual([]);
+  });
+
+  it("also loads skills from the global config dir (~/.core-agent/skills) when cwd has none", async () => {
+    await writeSkill(globalDir, "global_echoer", "skill_echo_global", "process.stdout.write('from global')");
+    const loaded = await loadSkills(dir);
+    expect(loaded).toEqual(["global_echoer/skill_echo_global"]);
+  });
+
+  it("merges cwd and global skills, preferring the cwd one on a name collision", async () => {
+    await writeSkill(dir, "local_pkg", "skill_shared", "process.stdout.write('local')");
+    await writeSkill(globalDir, "global_pkg", "skill_shared", "process.stdout.write('global')");
+    await writeSkill(globalDir, "global_only", "skill_only_global", "process.stdout.write('only global')");
+
+    const loaded = await loadSkills(dir);
+    // the cwd-scanned tool registers first, so the global one with the same
+    // name is skipped by registerTool()'s existing collision guard.
+    expect(loaded).toEqual(["local_pkg/skill_shared", "global_only/skill_only_global"]);
+
+    const ctx = new ToolContext(dir);
+    const result = await executeToolCall({ id: "1", name: "skill_shared", arguments: "{}" }, ctx);
+    expect(result.content).toBe("local");
   });
 });

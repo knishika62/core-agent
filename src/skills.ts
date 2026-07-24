@@ -4,6 +4,7 @@ import path from "node:path";
 import type { ToolDefinition, ToolResult } from "./types.js";
 import { requireConfirmation, type ToolContext } from "./tools/context.js";
 import { registerTool, type ToolFn } from "./tools/index.js";
+import { globalConfigDir } from "./globalConfig.js";
 
 interface SkillToolManifest {
   name: string;
@@ -58,16 +59,11 @@ function makeSkillHandler(skillName: string, skillDir: string, tool: SkillToolMa
 }
 
 /**
- * Discovers skills under <cwd>/skills/<skill-name>/skill.json and registers
+ * Discovers skills under <skillsDir>/<skill-name>/skill.json and registers
  * each declared tool via registerTool(). Returns the "skillName/toolName"
- * labels that were successfully loaded, for a startup log line.
- *
- * This is deliberately the *only* place that knows what a skill directory
- * looks like — everything downstream (agent.ts, cli.ts, executeToolCall)
- * just sees ordinary tools, same as the built-in ones.
+ * labels that were successfully loaded.
  */
-export async function loadSkills(cwd: string): Promise<string[]> {
-  const skillsDir = path.join(cwd, "skills");
+async function scanSkillsDir(skillsDir: string): Promise<string[]> {
   let entries;
   try {
     entries = await readdir(skillsDir, { withFileTypes: true });
@@ -98,4 +94,20 @@ export async function loadSkills(cwd: string): Promise<string[]> {
     }
   }
   return loaded;
+}
+
+/**
+ * Scans both <cwd>/skills (project-local) and ~/.core-agent/skills (global —
+ * where the distributed build's standard skills like mail_send/pdf_export
+ * get copied) and registers everything found. cwd is scanned first, so on a
+ * name collision the project-local skill wins and the global one is skipped
+ * with a warning (registerTool()'s existing dedup) — this is deliberately
+ * the *only* place that knows what a skill directory looks like, everything
+ * downstream (agent.ts, cli.ts, executeToolCall) just sees ordinary tools,
+ * same as the built-in ones.
+ */
+export async function loadSkills(cwd: string): Promise<string[]> {
+  const local = await scanSkillsDir(path.join(cwd, "skills"));
+  const global = await scanSkillsDir(path.join(globalConfigDir(), "skills"));
+  return [...local, ...global];
 }

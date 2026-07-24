@@ -9,7 +9,8 @@ import { runTurn } from "./agent.js";
 import { ToolContext, toolDefinitions } from "./tools/index.js";
 import type { ConfirmFn } from "./tools/context.js";
 import type { Message } from "./types.js";
-import { config } from "./config.js";
+import { config, initConfig } from "./config.js";
+import { loadEnvFile } from "./envLoader.js";
 import { loadSession, saveSession, listSessions } from "./session.js";
 import { loadProjectInstructions, buildSystemPrompt } from "./projectInstructions.js";
 import { color } from "./cliColors.js";
@@ -105,6 +106,12 @@ function printHelp(): void {
 }
 
 async function main() {
+  // Must happen before anything reads config.xxx: loads cwd/.env if present,
+  // else ~/.core-agent/.env, else bootstraps the latter from a template and
+  // exits (first run) — see envLoader.ts.
+  loadEnvFile(process.cwd());
+  initConfig();
+
   const argv = process.argv.slice(2);
 
   if (argv.includes("--cron")) {
@@ -209,8 +216,8 @@ async function main() {
   }
   if (projectInstructions) console.log(color.dim("(loaded project instructions from AGENT.md)"));
   if (loadedSkills.length) console.log(color.dim(`(loaded skills: ${loadedSkills.join(", ")})`));
-  if (hookCount > 0) console.log(color.dim(`(loaded ${hookCount} hook(s) from .core-agent/hooks.json)`));
-  if (cronScheduled > 0) console.log(color.dim(`(scheduled ${cronScheduled} cron job(s) from .core-agent/cron.json)`));
+  if (hookCount > 0) console.log(color.dim(`(loaded ${hookCount} hook(s) from hooks.json)`));
+  if (cronScheduled > 0) console.log(color.dim(`(scheduled ${cronScheduled} cron job(s) from cron.json)`));
   if (autoMode) console.log(color.dim("(auto mode ON: write/edit/bash/skill tools will not ask for confirmation — /auto to toggle)"));
   console.log(color.dim("Type your message, /help for commands, /exit to quit.\n"));
 

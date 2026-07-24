@@ -1,6 +1,8 @@
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { execSync } from "node:child_process";
 import path from "node:path";
+import { globalConfigDir } from "./globalConfig.js";
 
 export interface HookRule {
   /** Regex tested against the tool name; "*" or omitted matches everything. */
@@ -17,10 +19,17 @@ export interface HooksConfig {
  * Not cached: hooks.json is tiny and re-reading it lets a user edit hooks
  * while the agent is running (e.g. during a long cron daemon session)
  * without needing a restart.
+ *
+ * Prefers a project-local .core-agent/hooks.json (cwd) so a project can
+ * carry its own hooks, but falls back to ~/.core-agent/hooks.json — a
+ * distributed binary on PATH, launched from an arbitrary directory, still
+ * finds the user's personal hook config even with no project-local one.
  */
 export async function loadHooksConfig(cwd: string): Promise<HooksConfig> {
+  const local = path.join(cwd, ".core-agent", "hooks.json");
+  const hooksPath = existsSync(local) ? local : path.join(globalConfigDir(), "hooks.json");
   try {
-    const raw = await readFile(path.join(cwd, ".core-agent", "hooks.json"), "utf-8");
+    const raw = await readFile(hooksPath, "utf-8");
     return JSON.parse(raw) as HooksConfig;
   } catch {
     return {};

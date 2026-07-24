@@ -47,6 +47,8 @@ describe("maybeCompact", () => {
     vi.stubEnv("MAX_CONTEXT_TOKENS", "10");
     // re-import config with the stubbed env by dynamic import after stubbing
     vi.resetModules();
+    const { initConfig } = await import("./config.js");
+    initConfig();
     const { maybeCompact: maybeCompactFresh } = await import("./compaction.js");
 
     const messages: Message[] = [{ role: "system", content: "sys" }];
