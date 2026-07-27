@@ -1,8 +1,43 @@
 import type { ToolResult } from "../types.js";
 import type { ToolContext } from "./context.js";
 import { getBrowser, isGoogleBlockedUrl, ensureWarmedUp } from "./browser.js";
+import { config } from "../config.js";
 
 const NAV_TIMEOUT_MS = 25_000;
+const SEARCH_ENGINE_TIMEOUT_MS = 15_000;
+
+interface SearchEngineResult {
+  title?: string;
+  url?: string;
+  content?: string;
+}
+
+// Self-hosted JSON search endpoint (e.g. SearXNG's ?format=json), used
+// instead of driving a real browser against google.com when configured.
+async function searchViaEndpoint(query: string): Promise<ToolResult> {
+  const base = config.searchEngineUrl.replace(/\/+$/, "");
+  const url = `${base}/search?q=${encodeURIComponent(query)}&format=json`;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(SEARCH_ENGINE_TIMEOUT_MS) });
+    if (!res.ok) {
+      return {
+        content: `Tool error: google_search endpoint returned HTTP ${res.status}\n`,
+        isError: true,
+      };
+    }
+    const data = (await res.json()) as { results?: SearchEngineResult[] };
+    const results = data.results ?? [];
+    if (results.length === 0) {
+      return { content: `# Search results\n\nQuery: ${query}\n\nNo results.\n` };
+    }
+    const body = results
+      .map((r) => `- [${r.title ?? r.url ?? "(untitled)"}](${r.url ?? ""})\n  ${r.content ?? ""}`)
+      .join("\n");
+    return { content: `# Search results\n\nQuery: ${query}\n\n${body}\n` };
+  } catch (err: any) {
+    return { content: `Tool error: google_search endpoint failed: ${err.message}\n`, isError: true };
+  }
+}
 const CONSENT_PATTERNS = ["accept all", "すべて承諾", "i agree", "同意する"];
 
 // See visitPage.ts for why this is a raw JS string rather than a TS function
@@ -45,6 +80,8 @@ export async function toolGoogleSearch(
 ): Promise<ToolResult> {
   const query = args.query as string | undefined;
   if (!query) return { content: "Tool error: google_search requires query\n", isError: true };
+
+  if (config.searchEngineUrl) return searchViaEndpoint(query);
 
   const warmup = await ensureWarmedUp(ctx, "google_search");
   if (warmup) return warmup;

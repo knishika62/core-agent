@@ -25,6 +25,7 @@ export const config = {
   maxToolRounds: 50,
   maxContextTokens: 60_000,
   pythonPath: "",
+  searchEngineUrl: "",
 };
 
 /** Call once, after loadEnvFile() has populated process.env, and before
@@ -49,6 +50,10 @@ export function initConfig(): void {
   // instead of reaching for whatever "python"/"python3" happens to be on
   // PATH and pip-installing into it unprompted.
   config.pythonPath = process.env.PYTHON_PATH ?? "";
+  // If set, google_search hits this HTTP JSON endpoint (e.g. a self-hosted
+  // SearXNG instance) instead of driving a real Chrome against google.com —
+  // no browser warmup/bot-detection concerns at all on that path.
+  config.searchEngineUrl = process.env.SEARCH_ENGINE_URL ?? "";
 }
 
 export function visionConfigured(): boolean {

@@ -29,6 +29,10 @@ MAX_TOOL_ROUNDS=50
 # summarized so long sessions don't overflow the model's context window.
 MAX_CONTEXT_TOKENS=60000
 
+# If set, google_search hits this HTTP JSON endpoint instead of driving a
+# real Chrome against google.com.
+# SEARCH_ENGINE_URL=http://192.168.11.50:8888
+
 # Browser (visit_page/google_search tools). All optional.
 # CORE_AGENT_CHROME=/path/to/chrome              # explicit Chrome executable path
 # CORE_AGENT_CHROME_PROFILE=/path/to/profile-dir # explicit profile dir (default ~/.core-agent/browser)
