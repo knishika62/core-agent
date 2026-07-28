@@ -40,6 +40,7 @@ export const WEB_UI_HTML = String.raw`<!doctype html>
   aside.collapsed .sidebar-header h1 { display: none; }
   .sidebar-header { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 8px; }
   .sidebar-header h1 { font-size: 15px; margin: 0; }
+  #versionTag { font-size: 11px; font-weight: normal; color: var(--dim); margin-left: 6px; }
   #sidebarToggle { flex: none; padding: 4px 8px; }
   #status {
     font-size: 10px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
@@ -194,7 +195,7 @@ export const WEB_UI_HTML = String.raw`<!doctype html>
 <div id="app">
   <aside id="sidebar">
     <div class="sidebar-header">
-      <h1>core-agent</h1>
+      <h1>core-agent<span id="versionTag"></span></h1>
       <button id="sidebarToggle" title="Collapse sidebar">«</button>
     </div>
     <div id="sidebarBody">
@@ -261,6 +262,7 @@ export const WEB_UI_HTML = String.raw`<!doctype html>
     headerToggle: document.getElementById("headerToggle"),
     headerFloatToggle: document.getElementById("headerFloatToggle"),
     status: document.getElementById("status"),
+    versionTag: document.getElementById("versionTag"),
     sessions: document.getElementById("sessions"),
     newSessionBtn: document.getElementById("newSessionBtn"),
     toolsList: document.getElementById("toolsList"),
@@ -624,7 +626,9 @@ export const WEB_UI_HTML = String.raw`<!doctype html>
   async function loadStatus() {
     var res = await api("/api/status");
     var s = await res.json();
+    if (s.version && el.versionTag) el.versionTag.textContent = "v" + s.version;
     var rows = [statusRow("model", s.model), statusRow("endpoint", s.baseUrl)];
+    if (s.version) rows.push(statusRow("version", s.version));
     if (s.projectInstructions) rows.push(statusRow("instructions", "loaded"));
     if (s.skills.length) rows.push(statusRow("skills", s.skills.join(", ")));
     if (s.hookCount) rows.push(statusRow("hooks", String(s.hookCount)));

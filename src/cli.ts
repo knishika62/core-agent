@@ -20,6 +20,7 @@ import { loadSkills } from "./skills.js";
 import { loadHooksConfig } from "./hooks.js";
 import { runCronDaemon, scheduleCronJobs } from "./cronDaemon.js";
 import { baseSystemPrompt } from "./systemPrompt.js";
+import pkg from "../package.json" with { type: "json" };
 
 const REPL_COMMANDS: Record<string, string> = {
   "/help, /?": "Show this help",
@@ -106,13 +107,21 @@ function printHelp(): void {
 }
 
 async function main() {
+  const argv = process.argv.slice(2);
+
+  // Checked before the .env/config bootstrap below (which can print a
+  // first-run setup message and exit) — `--version` should work even on a
+  // machine with no config set up yet.
+  if (argv.includes("--version") || argv.includes("-v")) {
+    console.log(`core-agent v${pkg.version}`);
+    return;
+  }
+
   // Must happen before anything reads config.xxx: loads cwd/.env if present,
   // else ~/.core-agent/.env, else bootstraps the latter from a template and
   // exits (first run) — see envLoader.ts.
   loadEnvFile(process.cwd());
   initConfig();
-
-  const argv = process.argv.slice(2);
 
   if (argv.includes("--cron")) {
     await runCronDaemon(process.cwd());

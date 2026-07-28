@@ -23,6 +23,7 @@ import { scheduleCronJobs } from "./cronDaemon.js";
 import { loadCronConfig } from "./cronConfig.js";
 import { baseSystemPrompt } from "./systemPrompt.js";
 import { WEB_UI_HTML } from "./webUI.js";
+import pkg from "../package.json" with { type: "json" };
 
 interface SessionState {
   messages: Message[];
@@ -277,6 +278,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<Se
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(
       JSON.stringify({
+        version: pkg.version,
         model: config.main.model,
         baseUrl: config.main.baseUrl,
         projectInstructions: Boolean(projectInstructions),
@@ -518,7 +520,7 @@ async function main(): Promise<void> {
   const server = await startWebServer();
   const addr = server.address();
   const shownPort = addr && typeof addr === "object" ? addr.port : config.guiPort;
-  console.log(`core-agent GUI — model: ${config.main.model} @ ${config.main.baseUrl}`);
+  console.log(`core-agent GUI v${pkg.version} — model: ${config.main.model} @ ${config.main.baseUrl}`);
   console.log(`Listening on http://${config.guiHost}:${shownPort} (no auth — trusted networks only)`);
 }
 
