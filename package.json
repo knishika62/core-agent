@@ -10,6 +10,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/cli.js",
+    "start:gui": "node dist/webServer.js",
     "dev": "tsx src/cli.ts",
     "dev:gui": "tsx src/webServer.ts",
     "typecheck": "tsc --noEmit",

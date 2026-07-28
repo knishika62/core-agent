@@ -62,6 +62,7 @@ Type your message, /help for commands, /exit to quit.
 | `--session <name>` | セッション名を指定(既定`default`)。`sessions/<name>.json`に保存/再開される |
 | `--yes` / `-y` | `write`/`edit`/`bash`実行前の確認をすべてスキップ |
 | `--cron` | REPLを開かず、cron専用ヘッドレスモードで起動 |
+| `--version` / `-v` | バージョンを表示して終了 |
 
 ### REPL内コマンド
 

@@ -143,7 +143,7 @@ cd windows-x64
 閉じるとサーバーも終了します):
 
 ```
-core-agent GUI — model: deepseek-v4-flash @ http://127.0.0.1:8000/v1
+core-agent GUI v0.0.1 — model: deepseek-v4-flash @ http://127.0.0.1:8000/v1
 Listening on http://0.0.0.0:8787 (no auth — trusted networks only)
 ```
 

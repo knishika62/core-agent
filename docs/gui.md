@@ -45,7 +45,7 @@ npm run dev:gui
 ```
 
 ```
-core-agent GUI — model: deepseek-v4-flash @ http://127.0.0.1:8000/v1
+core-agent GUI v0.0.1 — model: deepseek-v4-flash @ http://127.0.0.1:8000/v1
 Listening on http://0.0.0.0:8787 (no auth — trusted networks only)
 ```
 
@@ -141,8 +141,16 @@ TUI版と完全に同じ仕組みを共有しています。詳細は [`docs/tui
 
 ## ビルド・バイナリ化
 
+`npm run dev:gui`は`tsx`でソースを直接実行しますが、ビルド後は`npm run start:gui`
+(`node dist/webServer.js`)でも起動できます(GUI版はCLIオプションを取らないため、
+`npm start`と違い引数を渡す`--`は不要です):
+
 ```bash
 npm run build
+npm run start:gui
+```
+
+```bash
 npm run typecheck
 npm test
 ```
