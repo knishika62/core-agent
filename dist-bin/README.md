@@ -44,14 +44,30 @@ core-agentの単一実行ファイル版です。
 - **`!<command>`によるシェル直接実行**: LLMを介さずローカルでコマンド実行(`!cd`で作業ディレクトリ変更も可)
 - **プロジェクト指示ファイルの自動読込**: カレントディレクトリの`AGENT.md`を起動時にsystem promptへ反映
 
+## TUI版とGUI版、どちらを使う？
+
+同じフォルダに**2種類**の実行ファイルが入っています。ツール・設定ファイル・skill/hooks/cronは
+完全に共有していて、違いは入口(見た目)だけです。
+
+- **`core-agent`(TUI版)**: ターミナル(コマンドプロンプト)の中でチャットするタイプ。
+- **`core-agent-gui`(GUI版)**: 実行するとローカルにサーバーが立ち上がり、ブラウザ
+  (`http://localhost:8787`)からチャットするタイプ。日本語IMEの変換候補が崩れず、
+  画像/動画/音声もブラウザ上にそのまま表示されます。ターミナル操作に慣れていない場合は
+  こちらの方が扱いやすいはずです。
+
+どちらか片方だけで十分です(両方同時に起動すると、後述の通りcronジョブが二重に動く
+点だけ注意してください)。
+
 ## フォルダ構成
 
 ```
 dist-bin/
 ├── macos-arm64/
-│   └── core-agent        macOS (Apple Silicon) 用バイナリ
+│   ├── core-agent        macOS (Apple Silicon) 用バイナリ(TUI版)
+│   └── core-agent-gui    macOS (Apple Silicon) 用バイナリ(GUI版)
 ├── windows-x64/
-│   └── core-agent.exe    Windows (64bit) 用バイナリ
+│   ├── core-agent.exe        Windows (64bit) 用バイナリ(TUI版)
+│   └── core-agent-gui.exe    Windows (64bit) 用バイナリ(GUI版)
 ├── skills/
 │   ├── mail_send/      同梱skill(SMTP経由メール送信)
 │   └── pdf_export/     同梱skill(Markdown→PDF変換)
@@ -79,8 +95,9 @@ dist-bin/
 
 ## セットアップ
 
-1. お使いのOSに合わせて、対応するフォルダ(`macos-arm64/`または`windows-x64/`)の中の
-   実行ファイル(`core-agent`または`core-agent.exe`)だけを、PATHの通った好きな場所に置いてください。
+1. お使いのOSに合わせて、対応するフォルダ(`macos-arm64/`または`windows-x64/`)の中から、
+   使いたい方の実行ファイル(TUI版`core-agent`[`.exe`]、またはGUI版`core-agent-gui`[`.exe`]。
+   前述「TUI版とGUI版、どちらを使う？」参照)を、PATHの通った好きな場所に置いてください。
 2. [Python](https://www.python.org/)(`python3`または`python`がPATH上にあること)を
    インストールしておいてください。初回起動時、Python専用のスクリプト実行環境(venv)を
    自動で作るのに使われます(後述「Pythonスクリプトを書かせる場合」参照)。**Python無しで
@@ -167,6 +184,9 @@ dist-bin/
 | `CORE_AGENT_CHROME_WINDOW_SIZE` | 既定`480,360` | 可視ウィンドウのサイズ(px、`幅,高さ`) |
 | `CORE_AGENT_CHROME_WINDOW_POSITION` | 既定`0,0` | 可視ウィンドウの位置(px、`X,Y`。既定は画面左上) |
 | `NO_COLOR` | 任意 | 設定するとCLI出力のANSI色付け・Markdown装飾を無効化 |
+| `GUI_HOST` | 既定`0.0.0.0`(GUI版のみ) | GUIサーバーの待ち受けアドレス。既定はLAN内の他PCからもアクセス可能(認証なし、後述) |
+| `GUI_PORT` | 既定`8787`(GUI版のみ) | GUIサーバーのポート番号 |
+| `GUI_INLINE_MEDIA` | 既定`1`(GUI版のみ) | 画像/動画/音声をブラウザ内に直接表示するか。`0`にすると代わりにサーバー側マシンでネイティブアプリが開く |
 | `EMAIL_TO` | 任意 | `mail_send`スキル: `to`省略時のデフォルト送信先 |
 | `EMAIL_FROM` | 任意(既定は`EMAIL_SMTP_USER`) | `mail_send`スキル: 送信元アドレス |
 | `EMAIL_SMTP_SERVER` / `EMAIL_SMTP_USER` / `EMAIL_SMTP_PASSWORD` | `mail_send`使用時は必須 | `mail_send`スキル: SMTP接続情報(Gmailの場合`EMAIL_SMTP_PASSWORD`は2段階認証のアプリパスワード) |
@@ -195,9 +215,44 @@ cd windows-x64
 
 Windows Defender SmartScreenの警告が出る場合は「詳細情報」→「実行」を選択してください。
 
+### GUI版の起動
+
+TUI版と同じフォルダに入っている`core-agent-gui`(`.exe`)を実行します(Gatekeeper/SmartScreenの
+案内は上記TUI版と同じです)。ターミナル操作が不要な点を除けば、`.env`の初回作成などの流れは
+TUI版と全く同じです(上記「セットアップ」参照)。
+
+```
+cd macos-arm64
+./core-agent-gui
+```
+
+```
+cd windows-x64
+.\core-agent-gui.exe
+```
+
+以下のように表示されたら起動成功です(このウィンドウは閉じずに開いたままにしてください。
+閉じるとサーバーも終了します):
+
+```
+core-agent GUI — model: deepseek-v4-flash @ http://127.0.0.1:8000/v1
+Listening on http://0.0.0.0:8787 (no auth — trusted networks only)
+```
+
+ブラウザで **`http://localhost:8787`** を開いてください。同じLAN内の別のPC/スマホからも
+`http://<このPCのIPアドレス>:8787`でアクセスできます(既定で認証は一切無いので、
+信頼できるネットワーク内だけで使ってください。外部に公開したい場合は`GUI_HOST`を
+`127.0.0.1`にして自分のPCからのみアクセス可能にするか、別途リバースプロキシ+認証を
+用意してください)。
+
+**TUI版とGUI版を同時に起動するとcronジョブが二重登録されます**(`.core-agent/cron.json`を
+使っている場合のみ影響)。同じジョブが1回のスケジュールで複数回実行される(例: 通知メールが
+2〜3通届く)ので、cronを使うならどちらか一方だけを起動しっぱなしにしてください。
+
 ## CLIオプション
 
-本体版(`npm run dev`)と同じオプションが使えます:
+TUI版は本体版(`npm run dev`)と同じオプションが使えます(GUI版はCLIオプションを取りません、
+`GUI_HOST`/`GUI_PORT`等は上記の通り`.env`で設定してください):
 
 ```
 ./core-agent --session work --yes
@@ -300,7 +355,8 @@ OSごとに正しい一時ディレクトリの実際の値が自動的に埋め
 
 ## 制限事項・既知の問題
 
-- 日本語IME変換中の表示崩れ(ターミナル+IMEの構造的な問題、本体版と同様)。
+- 日本語IME変換中の表示崩れ(TUI版のみ。ターミナル+IMEの構造的な問題で、ブラウザの
+  `<textarea>`を使うGUI版では発生しません)。
 - Windows実機でのテストは実施済みです。これまでに見つかった問題(V8 bytecodeキャッシュの
   ビルド元/実行先不一致によるクラッシュ、`cmd.exe`でのpip installコマンドのクォート崩れ、
   ネットワーク瞬断時のLLMリクエスト失敗でプロセス全体が落ちる問題、`visit_page`経由での
