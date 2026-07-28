@@ -10,7 +10,7 @@ const PYTHON_PATH_PLACEHOLDER = "# PYTHON_PATH=/path/to/venv/bin/python";
 // distributed single-file binary has no guarantee that file sits anywhere
 // near it (the whole point of the cwd -> ~/.core-agent fallback this
 // supports is that the binary can be launched from anywhere).
-const ENV_TEMPLATE = `# Main text/coding model (speed is secondary to coding quality)
+export const ENV_TEMPLATE = `# Main text/coding model (speed is secondary to coding quality)
 OPENAI_BASE_URL=http://127.0.0.1:8000/v1
 OPENAI_API_KEY=
 LLM_MODEL=deepseek-v4-flash

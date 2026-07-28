@@ -15,7 +15,9 @@ npm install
 cp .env.example .env
 ```
 
-`.env`を編集して、最低限メインモデルのエンドポイントを設定してください:
+`.env`を編集して、最低限メインモデルのエンドポイントを設定してください
+(`npm run dev -- --env`でパスを探さずOS標準のエディタで開けます。詳しくは後述の
+「CLIオプション」の`--env`参照):
 
 ```bash
 # メインモデル(コーディング用、OpenAI互換)
@@ -63,6 +65,7 @@ Type your message, /help for commands, /exit to quit.
 | `--yes` / `-y` | `write`/`edit`/`bash`実行前の確認をすべてスキップ |
 | `--cron` | REPLを開かず、cron専用ヘッドレスモードで起動 |
 | `--version` / `-v` | バージョンを表示して終了 |
+| `--env` | `.env`の簡易編集ツール。グローバル(`~/.core-agent/.env`)かプロジェクト直下(`./.env`)かを選び、無ければテンプレートから新規作成、`$EDITOR`(未設定時はUnix系`vi`/Windows`notepad`)で開く。GUI版(`core-agent-gui --env`)にも同じものがある |
 
 ### REPL内コマンド
 

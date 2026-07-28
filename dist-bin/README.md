@@ -65,8 +65,10 @@ dist-bin/
    Press any key to exit...
    ```
 
-3. 案内の通り`~/.core-agent/.env`をエディタで開いて値を埋めてください。最低限、以下を
-   設定すれば動きます:
+3. 案内の通り`~/.core-agent/.env`をエディタで開いて値を埋めてください。
+   (`--env`オプションで起動すると、パスを自分で探さなくてもOS標準のエディタ
+   [`$EDITOR`未設定ならmacOS/Linuxは`vi`、Windowsは`notepad`] で`.env`を開けます。
+   下記「CLIオプション」参照。)最低限、以下を設定すれば動きます:
 
    ```
    OPENAI_BASE_URL=http://127.0.0.1:8000/v1
@@ -143,7 +145,7 @@ cd windows-x64
 閉じるとサーバーも終了します):
 
 ```
-core-agent GUI v0.0.1 — model: deepseek-v4-flash @ http://127.0.0.1:8000/v1
+core-agent GUI v0.0.2 — model: deepseek-v4-flash @ http://127.0.0.1:8000/v1
 Listening on http://0.0.0.0:8787 (no auth — trusted networks only)
 ```
 
@@ -159,8 +161,8 @@ Listening on http://0.0.0.0:8787 (no auth — trusted networks only)
 
 ## CLIオプション
 
-TUI版は本体版(`npm run dev`)と同じオプションが使えます(GUI版はCLIオプションを取りません、
-`GUI_HOST`/`GUI_PORT`等は上記の通り`.env`で設定してください):
+TUI版は本体版(`npm run dev`)と同じオプションが使えます(GUI版は`--env`以外のCLIオプションを
+取りません、`GUI_HOST`/`GUI_PORT`等は上記の通り`.env`で設定してください):
 
 ```
 ./core-agent --session work --yes
@@ -175,6 +177,7 @@ TUI版は本体版(`npm run dev`)と同じオプションが使えます(GUI版�
 | `--yes` / `-y` | `write`/`edit`/`bash`実行前の確認をスキップ |
 | `--cron` | REPLを開かず、cron専用ヘッドレスモードで起動(`.core-agent/cron.json`が必要) |
 | `--version` / `-v` | バージョンを表示して終了 |
+| `--env` | `.env`の簡易編集ツール。グローバル(`~/.core-agent/.env`)かプロジェクト直下(`./.env`)かを選び、無ければテンプレートから新規作成、`$EDITOR`(未設定時はUnix系`vi`/Windows`notepad`)で開く。`core-agent-gui --env`でも同じものが使える |
 
 REPL内コマンド(`/help`(`/?`でも可)/`/list`/`/auto`/`/reset`/`/exit`/`!<command>`)も本体版と同じです。
 応答生成中に`Esc`を押すと、そこまでのテキストを残したままストリーミングを中断できます

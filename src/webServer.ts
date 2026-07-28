@@ -14,6 +14,7 @@ import type { ConfirmFn } from "./tools/context.js";
 import type { Message } from "./types.js";
 import { config, initConfig } from "./config.js";
 import { loadEnvFile } from "./envLoader.js";
+import { runEnvEditor } from "./envEditor.js";
 import { loadSession, saveSession, listSessions, deleteSession } from "./session.js";
 import { loadProjectInstructions, buildSystemPrompt } from "./projectInstructions.js";
 import { closeBrowser } from "./tools/browser.js";
@@ -534,6 +535,16 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<Se
 }
 
 async function main(): Promise<void> {
+  // The one CLI option the GUI binary accepts (see docs/gui.md) — a GUI-only
+  // user has no reason to ever touch the TUI binary, so this needs its own
+  // entry point rather than only living on cli.ts's --env. Checked before
+  // the .env/config bootstrap for the same reason as cli.ts: this command's
+  // job is creating/fixing .env, so it must work even when none exists yet.
+  if (process.argv.slice(2).includes("--env")) {
+    await runEnvEditor(process.cwd());
+    return;
+  }
+
   // Must happen before anything reads config.xxx — see cli.ts for the same
   // pattern (cwd/.env, falling back to ~/.core-agent/.env, first-run
   // bootstrap).

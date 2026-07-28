@@ -11,6 +11,7 @@ import type { ConfirmFn } from "./tools/context.js";
 import type { Message } from "./types.js";
 import { config, initConfig } from "./config.js";
 import { loadEnvFile } from "./envLoader.js";
+import { runEnvEditor } from "./envEditor.js";
 import { loadSession, saveSession, listSessions } from "./session.js";
 import { loadProjectInstructions, buildSystemPrompt } from "./projectInstructions.js";
 import { color } from "./cliColors.js";
@@ -114,6 +115,14 @@ async function main() {
   // machine with no config set up yet.
   if (argv.includes("--version") || argv.includes("-v")) {
     console.log(`core-agent v${pkg.version}`);
+    return;
+  }
+
+  // Also checked before the .env/config bootstrap — this command's whole
+  // job is creating/fixing .env, so it needs to work even when one doesn't
+  // exist yet (which loadEnvFile() would otherwise treat as first-run).
+  if (argv.includes("--env")) {
+    await runEnvEditor(process.cwd());
     return;
   }
 

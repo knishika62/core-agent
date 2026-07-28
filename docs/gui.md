@@ -17,7 +17,9 @@ npm install
 cp .env.example .env
 ```
 
-`.env`を編集して、最低限メインモデルのエンドポイントを設定してください:
+`.env`を編集して、最低限メインモデルのエンドポイントを設定してください
+(`npm run dev:gui -- --env`でパスを探さずOS標準のエディタで開けます。詳しくは後述の
+「`.env`の簡易編集(`--env`)」参照):
 
 ```bash
 # メインモデル(コーディング用、OpenAI互換)
@@ -45,7 +47,7 @@ npm run dev:gui
 ```
 
 ```
-core-agent GUI v0.0.1 — model: deepseek-v4-flash @ http://127.0.0.1:8000/v1
+core-agent GUI v0.0.2 — model: deepseek-v4-flash @ http://127.0.0.1:8000/v1
 Listening on http://0.0.0.0:8787 (no auth — trusted networks only)
 ```
 
@@ -139,10 +141,24 @@ TUI版と完全に同じ仕組みを共有しています。詳細は [`docs/tui
   同時に起動していると同じジョブが二重登録され、同じ通知が複数回発火することがあるので
   注意してください**(cronを使うなら、TUI/GUIどちらか一方だけを起動しっぱなしにしてください)。
 
+### `.env`の簡易編集(`--env`)
+
+GUI版は基本的にCLIオプションを取りませんが、`--env`だけは例外です:
+
+```bash
+npm run dev:gui -- --env
+```
+
+グローバル(`~/.core-agent/.env`)かプロジェクト直下(`./.env`)かを選び、無ければ
+テンプレートから新規作成した上で`$EDITOR`(未設定時はUnix系`vi`/Windows`notepad`)で開きます。
+GUIに設定画面は無い(TUIだけ使う人が使えなくなるため意図的に作っていない)代わりに、
+TUI版(`core-agent --env`)と全く同じものをGUI版バイナリからも呼べるようにしてあります
+(サーバーは起動せず、編集が終わると即終了します)。
+
 ## ビルド・バイナリ化
 
 `npm run dev:gui`は`tsx`でソースを直接実行しますが、ビルド後は`npm run start:gui`
-(`node dist/webServer.js`)でも起動できます(GUI版はCLIオプションを取らないため、
+(`node dist/webServer.js`)でも起動できます(`--env`以外のCLIオプションは取らないため、
 `npm start`と違い引数を渡す`--`は不要です):
 
 ```bash
