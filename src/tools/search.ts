@@ -2,6 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { ToolResult } from "../types.js";
 import type { ToolContext } from "./context.js";
+import { isBinary } from "./pathUtils.js";
 
 const MAX_DEPTH = 24;
 
@@ -15,6 +16,15 @@ function globToRegExp(glob: string): RegExp {
   return new RegExp(`^${re}$`);
 }
 
+// Vendored/build directories nobody actually wants search results from —
+// and, more importantly, node_modules routinely contains minified/bundled
+// files with single lines running to hundreds of KB or more. A handful of
+// matches inside one of those can blow a single search result up to
+// megabytes even while "N matches shown" still reports a small, harmless-
+// looking count (that count is match occurrences, not output bytes), which
+// is enough on its own to defeat the harness's context-budget compaction.
+const SKIP_DIRS = new Set([".git", "node_modules"]);
+
 async function walk(dir: string, depth: number, out: string[]): Promise<void> {
   if (depth > MAX_DEPTH) return;
   let entries;
@@ -24,7 +34,7 @@ async function walk(dir: string, depth: number, out: string[]): Promise<void> {
     return;
   }
   for (const entry of entries) {
-    if (entry.name === ".git") continue;
+    if (SKIP_DIRS.has(entry.name)) continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       await walk(full, depth + 1, out);
@@ -32,10 +42,6 @@ async function walk(dir: string, depth: number, out: string[]): Promise<void> {
       out.push(full);
     }
   }
-}
-
-function isBinary(buf: Buffer): boolean {
-  return buf.includes(0);
 }
 
 interface Match {

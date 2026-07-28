@@ -2,6 +2,7 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import type { ToolResult } from "../types.js";
 import type { ToolContext } from "./context.js";
+import { isBinary } from "./pathUtils.js";
 
 const MAX_FILE_BYTES = 16 * 1024 * 1024; // 16MB, matches ds4_agent.c AGENT_FILE_MAX_BYTES
 const DEFAULT_MAX_LINES = 250;
@@ -16,6 +17,14 @@ async function loadFile(filePath: string): Promise<string[]> {
     throw new Error(`file too large: ${filePath} exceeds ${MAX_FILE_BYTES} bytes`);
   }
   const buf = await readFile(filePath);
+  // Without this, a model asked to look at an image would sometimes reach
+  // for `read` instead of `view_image` — nothing here rejected it (a
+  // several-MB PNG is well under MAX_FILE_BYTES), so the raw bytes got
+  // decoded as "utf-8 text" and handed back as a multi-million-character
+  // tool result, blowing the model's real context window in a single turn.
+  if (isBinary(buf)) {
+    throw new Error(`binary file, not text — use view_image for images, or show_media to open it directly: ${filePath}`);
+  }
   const text = buf.toString("utf-8");
   const lines = splitLines(text);
   // drop a single trailing empty line caused by a final newline

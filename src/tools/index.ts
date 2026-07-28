@@ -241,7 +241,37 @@ export async function executeToolCall(call: ToolCall, ctx: ToolContext): Promise
     result = { content: `Tool error: ${err.message}\n`, isError: true };
   }
 
+  result = capToolResult(call.name, result);
+
   await runPostToolUseHooks(ctx.cwd, call.name, call.arguments ?? "{}", result.content, Boolean(result.isError));
 
   return result;
+}
+
+// Last-line-of-defense output cap, applied uniformly regardless of which
+// tool produced the result. Individual tools already window their own
+// output sensibly where that's meaningful (read's max_lines/more, search's
+// max_results) — this exists for the cases those windows don't cover, e.g.
+// a search match landing inside a single enormous line (a minified bundle,
+// a one-line JSON file) where the *line count* stays small but the
+// *character count* doesn't. A single oversized tool result is also uniquely
+// dangerous: unlike gradual history growth, maybeCompact's own summarization
+// call would try to re-send that same oversized chunk to the model and fail
+// the same way, permanently wedging the session. Capped well under a
+// typical model's real context window, not just this harness's compaction
+// threshold, so one bad tool call can never blow through it in a single shot.
+const MAX_TOOL_RESULT_CHARS = 200_000;
+
+export function capToolResult(toolName: string, result: ToolResult): ToolResult {
+  if (result.content.length <= MAX_TOOL_RESULT_CHARS) return result;
+  const truncated = result.content.slice(0, MAX_TOOL_RESULT_CHARS);
+  // Deliberately tool-agnostic advice — this cap applies uniformly to every
+  // tool's output (bash, visit_page, a skill, ...), not just search, so
+  // search-specific wording ("narrow the glob") would be nonsense for most
+  // of them.
+  const notice =
+    `\n\n[${toolName} output truncated: ${result.content.length} chars exceeds the ${MAX_TOOL_RESULT_CHARS}-char ` +
+    "safety cap. Narrow this request's scope (smaller input, more specific target, fewer results requested) " +
+    "instead of retrying as-is.]\n";
+  return { content: truncated + notice, isError: result.isError };
 }

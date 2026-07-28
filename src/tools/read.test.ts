@@ -58,4 +58,15 @@ describe("toolRead", () => {
     expect(res.content).not.toMatch(/^1 line1/m);
     expect(res.content).toContain("line1\n");
   });
+
+  it("rejects binary files instead of dumping raw bytes as text", async () => {
+    // A real image would trip this too (PNG's own magic bytes contain a
+    // null byte), but a single null byte anywhere is enough on its own —
+    // no need for real image data to exercise the check.
+    await writeFile(path.join(dir, "image.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x0d, 0x0a]));
+    const res = await toolRead({ path: "image.png", whole: true }, ctx);
+    expect(res.isError).toBe(true);
+    expect(res.content).toMatch(/binary file/);
+    expect(res.content).toMatch(/view_image/);
+  });
 });

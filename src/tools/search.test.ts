@@ -51,6 +51,13 @@ describe("toolSearch", () => {
     expect(res.content).toBe("No matches\n");
   });
 
+  it("skips node_modules (vendored files can contain huge single-line matches)", async () => {
+    await mkdir(path.join(dir, "node_modules", "some-pkg"), { recursive: true });
+    await writeFile(path.join(dir, "node_modules", "some-pkg", "bundle.js"), "needle\n");
+    const res = await toolSearch({ query: "needle" }, ctx);
+    expect(res.content).toBe("No matches\n");
+  });
+
   it("is case-insensitive when requested", async () => {
     await writeFile(path.join(dir, "a.txt"), "Hello\n");
     const res = await toolSearch({ query: "hello", case_sensitive: false }, ctx);

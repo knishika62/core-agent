@@ -17,3 +17,11 @@ export function cleanDroppedPath(input: string): string {
   }
   return s.replace(/\\(.)/g, "$1");
 }
+
+/** Cheap binary-file heuristic (text files essentially never contain a NUL
+ *  byte, binary ones almost always do near the start) — shared by search.ts
+ *  (excluding binary files from results) and read.ts (rejecting them
+ *  outright instead of decoding raw bytes as garbage "text"). */
+export function isBinary(buf: Buffer): boolean {
+  return buf.includes(0);
+}

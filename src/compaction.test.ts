@@ -75,4 +75,39 @@ describe("maybeCompact", () => {
     // the tail should still be present verbatim
     expect(messages[messages.length - 1].content).toBe("answer 19");
   });
+
+  it("hard-truncates instead of getting permanently stuck when the summarization call itself fails", async () => {
+    // Reproduces the real incident: a chunk to summarize that's already too
+    // large for the model (e.g. it contains one oversized tool result) —
+    // the LLM summarization request fails the same way the original turn
+    // did. Without a fallback, the chunk would never leave `messages` and
+    // every future turn would keep re-sending (and failing on) the same
+    // history forever.
+    vi.stubEnv("MAX_CONTEXT_TOKENS", "10");
+    vi.resetModules();
+    const { initConfig } = await import("./config.js");
+    initConfig();
+    const { maybeCompact: maybeCompactFresh } = await import("./compaction.js");
+
+    const messages: Message[] = [{ role: "system", content: "sys" }];
+    for (let i = 0; i < 20; i++) {
+      messages.push({ role: "user", content: `question ${i}` });
+      messages.push({ role: "assistant", content: `answer ${i}` });
+    }
+
+    globalThis.fetch = vi.fn(async () =>
+      new Response(
+        JSON.stringify({ error: { message: "Request exceeds the context window of the model" } }),
+        { status: 400 },
+      ),
+    ) as any;
+
+    const before = messages.length;
+    const changed = await maybeCompactFresh(messages);
+    expect(changed).toBe(true);
+    expect(messages.length).toBeLessThan(before);
+    expect(messages[0].role).toBe("system");
+    expect(messages[1].content).toContain("hard-truncated");
+    expect(messages[messages.length - 1].content).toBe("answer 19");
+  });
 });

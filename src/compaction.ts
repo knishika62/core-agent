@@ -54,20 +54,39 @@ export async function maybeCompact(messages: Message[]): Promise<boolean> {
     .map((m) => `[${m.role}]${m.name ? ` (${m.name})` : ""} ${m.content}`)
     .join("\n\n");
 
-  const result = await chatCompletion(endpoint, [
-    {
-      role: "system",
-      content:
-        "Summarize the following conversation history concisely but completely: preserve important " +
-        "facts, decisions, file paths, and open tasks. This summary will permanently replace the " +
-        "original messages, so don't drop anything a later turn might need.",
-    },
-    { role: "user", content: transcript },
-  ]);
+  // If the chunk being summarized is itself too large for the model to read
+  // in one request (e.g. it contains one oversized tool result), asking the
+  // LLM to summarize it fails the exact same way the original turn did —
+  // and without a fallback here, the offending messages would never leave
+  // `messages`, permanently wedging the session (every future turn re-sends
+  // the same too-large history and fails identically). Falling back to a
+  // hard local truncation, instead of leaving the chunk in place, means the
+  // splice below always runs and the session can recover on its own.
+  let summaryContent: string;
+  try {
+    const result = await chatCompletion(endpoint, [
+      {
+        role: "system",
+        content:
+          "Summarize the following conversation history concisely but completely: preserve important " +
+          "facts, decisions, file paths, and open tasks. This summary will permanently replace the " +
+          "original messages, so don't drop anything a later turn might need.",
+      },
+      { role: "user", content: transcript },
+    ]);
+    summaryContent = result.content;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const HARD_TRUNCATE_CHARS = 5_000;
+    summaryContent =
+      `[LLM summarization failed (${message}) — hard-truncated instead of summarized.]\n` +
+      transcript.slice(0, HARD_TRUNCATE_CHARS) +
+      (transcript.length > HARD_TRUNCATE_CHARS ? "\n...[truncated]" : "");
+  }
 
   const summaryMessage: Message = {
     role: "user",
-    content: `[Earlier conversation summary, ${toSummarize.length} messages compacted]\n${result.content}`,
+    content: `[Earlier conversation summary, ${toSummarize.length} messages compacted]\n${summaryContent}`,
   };
 
   messages.splice(1, cutIndex - 1, summaryMessage);
