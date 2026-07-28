@@ -1,5 +1,7 @@
 # core-agent
 
+![core-agent](./image.png)
+
 [antirez/ds4](https://github.com/antirez/ds4) の `ds4_agent`(ネイティブ推論エンジンに
 in-process直結したCLIコーディングエージェント)を、任意のOpenAI/Anthropic互換HTTPエンドポイントを
 差し替え可能な形で作り直した上で機能拡張したNode/TypeScript版のハーネスです。
