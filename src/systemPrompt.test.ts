@@ -34,6 +34,14 @@ describe("baseSystemPrompt", () => {
     expect(prompt).toContain('do not hardcode "/tmp"');
   });
 
+  it("warns against starting a duplicate --cron daemon", async () => {
+    vi.resetModules();
+    const { baseSystemPrompt } = await import("./systemPrompt.js");
+    const prompt = baseSystemPrompt();
+    expect(prompt).toContain("--cron");
+    expect(prompt).toContain("duplicate runs");
+  });
+
   it("states the real configured model name and denies being Claude/Anthropic", async () => {
     vi.stubEnv("LLM_MODEL", "deepseek-v4-flash");
     vi.resetModules();
