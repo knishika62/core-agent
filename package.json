@@ -21,7 +21,8 @@
     "package:gui:macos": "npm run bundle:gui && pkg bundle/webServer.cjs --public --targets node20-macos-arm64 --output dist-bin/macos-arm64/core-agent-gui",
     "package:gui:win": "npm run bundle:gui && pkg bundle/webServer.cjs --public --targets node22-win-x64 --output dist-bin/windows-x64/core-agent-gui.exe",
     "package:gui": "npm run package:gui:macos && npm run package:gui:win",
-    "package": "npm run package:macos && npm run package:win && npm run package:gui"
+    "package": "npm run package:macos && npm run package:win && npm run package:gui",
+    "package:full": "bash scripts/build-binaries.sh"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
