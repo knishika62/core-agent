@@ -128,8 +128,10 @@ npm test        # vitest run
 
 ## プロジェクト指示ファイル
 
-カレントディレクトリに`AGENT.md`(`AGENTS.md`/`.agent.md`でも可)を置くと、起動時に自動で
-system promptに合成されます。Claude Codeを使ったことがあれば、CLAUDE.mdと同じ役割です。
+**ユーザー(あなた)が、そのプロジェクトで守ってほしいルールや背景をモデルに常に伝えたい時に
+書くファイル**です。カレントディレクトリに`AGENT.md`(`AGENTS.md`/`.agent.md`でも可)を置くと、
+起動時に自動で読み込まれてsystem promptに合成されます。Claude Codeを使ったことがあれば、
+CLAUDE.mdと同じ役割です。特別な記法は無く、Markdownで自由に書くだけで構いません。
 
 ## Hooks
 

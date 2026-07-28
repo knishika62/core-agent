@@ -26,8 +26,9 @@ LLM接続などのバックエンドは完全に共有しています。
   人間に見せる)。
 - **破壊的操作への確認ゲート**: `write`/`edit`/`bash`は既定で実行前にy/N確認(スキップ可能)。
 - **長時間セッション対応**: context圧縮(古い履歴の自動要約)、セッションの保存/再開。
-- **プロジェクト指示ファイルの自動読込**: cwdの`AGENT.md`(または`AGENTS.md`/`.agent.md`)を
-  起動時に読み込みsystem promptに反映(Claude CodeのCLAUDE.md相当)。
+- **プロジェクト指示ファイルの自動読込**: ユーザーがプロジェクト固有のルール・背景をモデルに
+  常に伝えたい時は、cwdに`AGENT.md`(または`AGENTS.md`/`.agent.md`)を書いておくと起動時に
+  自動で読み込まれsystem promptに反映される(Claude CodeのCLAUDE.md相当)。
 - **Hooks**: tool実行の前後に外部コマンドを差し込める(`.core-agent/hooks.json`)。
 - **skill機構**: メール送信・天気取得・画像生成のようなドメイン固有機能はcoreに入れず、
   `skills/<name>/skill.json`でツールとして動的登録する(Python等、任意の言語で実装可能)。
