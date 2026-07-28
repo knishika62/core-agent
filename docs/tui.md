@@ -2,6 +2,10 @@
 
 ターミナル(REPL)で使う版です。GUI版は [`docs/gui.md`](./gui.md) を参照してください。
 
+> この文書は**ソースからビルド・開発する場合**の手順です。ビルド済みバイナリを
+> ダウンロードして使うだけなら、[GitHub Releases](../../../releases)と同梱の`README.md`
+> (リポジトリ内では[`dist-bin/README.md`](../dist-bin/README.md))を参照してください。
+
 ## インストール
 
 Node.js 18以上(`fetch`/`ReadableStream`をネイティブ利用)が必要です。
@@ -27,35 +31,10 @@ VISION_API_KEY=
 VISION_MODEL=
 ```
 
-`google_search`/`visit_page`ツールはインストール済みのGoogle Chromeを操作します
-(`CORE_AGENT_CHROME`でパスを明示指定可能)。ウィンドウは作業の邪魔にならないよう既定で
-小さめ(480×360)・画面左上に開きます(`CORE_AGENT_CHROME_WINDOW_SIZE`/
-`CORE_AGENT_CHROME_WINDOW_POSITION`で変更可)。また、Chrome自身が表示する
-「Chrome は自動テスト ソフトウェアによって制御されています」というバーが出ますが、
-これはCDP(自動操作プロトコル)経由で起動した場合にChromeが必ず表示する標準の挙動で、
-core-agent側が出しているものではなく、文言も変更できません(非表示にはできますが、
-「自動操作中と分かる」目印として意図的にそのまま表示しています)。
-
-## `google_search`を初めて使う場合(重要)
-
-新品のブラウザプロファイル(Cookie・閲覧履歴が無い状態)からGoogle検索すると、
-「自動化された怪しいアクセス」としてbot検知に引っかかりやすくなります
-(Googleの標準的な仕組みで、core-agent固有の問題ではありません)。
-
-このため、**`google_search`を初めて呼び出した時は、実際の検索は行わず、代わりに可視のChrome
-ウィンドウが開きます**。エージェントからも「このプロファイルは初回利用なので、数分間ブラウザを
-普通に使ってから(適当にサイトを見る、任意でGoogleアカウントにログインする等)、**そのウィンドウを
-閉じてから**もう一度検索を試してほしい」という案内が返ります。**そのウィンドウを閉じるまでは、
-`google_search`を呼んでも「まだ待っている」という応答が返るだけで実際の検索は行われません**
-(ウィンドウを閉じる前に検索してしまうと、プロファイルがまだ育っていない状態でGoogleに
-アクセスすることになり、ウォームアップの意味が無くなるため)。これは**一度きりのセットアップ**で、
-ウィンドウを閉じれば以降は自動で検索できるようになります(プロファイルはホームディレクトリ配下の
-`.core-agent/browser`[Windowsでは`C:\Users\<ユーザー名>\.core-agent\browser`]に保存され、
-使うたびに「信頼されたブラウザ」として育っていきます)。
-
-検知を回避するための小細工(fingerprint偽装等)は意図的に行っていないため、稀に検索が
-ブロックされることがあります。その場合は`Tool error: google_search was blocked...`という
-エラーが明確に返るので、少し時間を置くか、ユーザーに手動検索を委ねてください。
+`google_search`/`visit_page`ツールはインストール済みのGoogle Chromeを操作します。
+初回ウォームアップの手順・Chromeウィンドウの挙動・セルフホスト検索エンジン
+(`SEARCH_ENGINE_URL`/SearXNG)への切り替え方法は [`docs/browsing.md`](./browsing.md)
+にまとめました(TUI/GUI共通)。
 
 ## 使い方
 
@@ -265,6 +244,9 @@ npm start -- --cron
 - `CORE_AGENT_CHROME` — 使用するChrome実行ファイルのパスを明示指定
 - `CORE_AGENT_CHROME_PROFILE` — Chromeプロファイルディレクトリを明示指定(既定`~/.core-agent/browser`)
 - `CORE_AGENT_CHROME_HEADLESS=1` — ブラウザをheadlessで起動
+- `SEARCH_ENGINE_URL` — セルフホストの検索エンジン(SearXNG等、`?q=...&format=json`で
+  JSONを返すもの)のベースURL。設定すると`google_search`はChromeを一切使わずこのURLへ
+  直接fetchするようになる(未設定なら従来通りブラウザ経由のGoogle検索)
 - `NO_COLOR` — 設定すると色分け/Markdown装飾を無効化(非TTY実行時は自動的に無効)
 - `PYTHON_PATH` — Pythonインタプリタの絶対パス(自分で管理しているvenv等)。設定すると、
   system promptでこのパスを使うよう明示され、素の`python`/`python3`を叩いてシステム環境を

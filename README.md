@@ -7,15 +7,14 @@ in-process直結したCLIコーディングエージェント)を、任意のOpe
 **TUI(ターミナルREPL)版とGUI(ブラウザ)版**の2つの入口があり、ツール・セッション管理・
 LLM接続などのバックエンドは完全に共有しています。
 
-- 📟 **[TUI版のセットアップ・使い方 → `docs/tui.md`](./docs/tui.md)**
-- 🌐 **[GUI版のセットアップ・使い方 → `docs/gui.md`](./docs/gui.md)**
-- 📦 **[バイナリのビルド方法 → `docs/binary-build.md`](./docs/binary-build.md)**
-
 ## 特徴
 
 - **バックエンド差し替え可能**: `.env`の`OPENAI_BASE_URL`/`LLM_MODEL`を変えるだけで、ローカルの
   推論サーバー(`ds4-server`等)からクラウドAPIまで任意のOpenAI互換エンドポイントに切り替え可能。
   `LLM_PROTOCOL=anthropic`でAnthropicの`/v1/messages`形式にも対応。
+- **検索エンジンも差し替え可能**: 既定はブラウザ経由のGoogle検索だが、`SEARCH_ENGINE_URL`に
+  セルフホストの検索エンジン(SearXNG等、`?q=...&format=json`でJSONを返すもの)を指定すると、
+  Chromeを一切使わずAPI直接呼び出しに切り替わる。
 - **TUI/GUI両対応**: 同じバックエンドに、ターミナルREPL(`cli.ts`)とブラウザUI
   (`webServer.ts`)の2つの入口からアクセスできる。GUI版はネイティブIME対応・Markdownテーブル・
   画像/動画/音声のインライン表示など、TUIには無い機能もある。
@@ -37,8 +36,29 @@ LLM接続などのバックエンドは完全に共有しています。
   どちらか一方だけを起動しっぱなしにしてください**(両方同時に動かすと同じジョブが二重に
   実行されます。詳細は `docs/tui.md` / `docs/gui.md` の該当セクション参照)。
 
-詳しいセットアップ・使い方は上記の [`docs/tui.md`](./docs/tui.md) / [`docs/gui.md`](./docs/gui.md)
-を参照してください(それぞれ単独で読めば動かせるように書かれています)。
+## すぐ使う
+
+Node.jsのインストール不要、単一実行ファイルをダウンロードするだけで使えます。
+
+- [**GitHub Releases**](../../releases) から、お使いのOS向けのTUI版(`core-agent`)または
+  GUI版(`core-agent-gui`)をダウンロードしてください。
+- ダウンロード後の使い方(セットアップ・`.env`設定・実行方法)は同梱の`README.md`
+  (リポジトリ内では [`dist-bin/README.md`](./dist-bin/README.md) と同じ内容)を参照してください。
+
+**注意**: core機能(read/write/edit/search/bash/visit_page/google_search/view_image/
+show_media)は実行ファイル単体で動きますが、`mail_send`/`pdf_export`等の**skillツールを
+使う場合はNode.jsが別途必要**です。また、**Python**はskillとは無関係に、LLMがグラフ作成・
+データ分析等で自発的にコードを書いて実行しようとする一般的な用途で事実上必須です
+(初回起動時に専用venvが自動作成され、パスは`.env`の`PYTHON_PATH`に自動設定されますが、
+Python本体のインストールは別途必要)。
+
+## ソースからビルド・開発したい場合
+
+- 📟 **[TUI版のセットアップ・使い方 → `docs/tui.md`](./docs/tui.md)**
+- 🌐 **[GUI版のセットアップ・使い方 → `docs/gui.md`](./docs/gui.md)**
+- 📦 **[バイナリのビルド方法 → `docs/binary-build.md`](./docs/binary-build.md)**
+
+いずれも単独で読めば動かせるように書かれています。
 
 ## 開発元ネタとの関係
 

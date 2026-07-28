@@ -4,6 +4,10 @@
 バックエンド(ツール・セッション管理・LLM接続)はTUIと完全に共有しており、`cli.ts`(TUI)と
 `webServer.ts`(GUI)は対等な2つの入口です。
 
+> この文書は**ソースからビルド・開発する場合**の手順です。ビルド済みバイナリを
+> ダウンロードして使うだけなら、[GitHub Releases](../../../releases)と同梱の`README.md`
+> (リポジトリ内では[`dist-bin/README.md`](../dist-bin/README.md))を参照してください。
+
 ## インストール
 
 Node.js 18以上(`fetch`/`ReadableStream`をネイティブ利用)が必要です。
@@ -29,9 +33,10 @@ VISION_API_KEY=
 VISION_MODEL=
 ```
 
-`google_search`/`visit_page`ツールはインストール済みのGoogle Chromeを操作します。詳細・初回の
-ウォームアップ手順はTUI版と共通なので [`docs/tui.md`](./tui.md#googlesearchを初めて使う場合重要)
-を参照してください。
+`google_search`/`visit_page`ツールはインストール済みのGoogle Chromeを操作します。
+初回ウォームアップの手順・Chromeウィンドウの挙動・セルフホスト検索エンジン
+(`SEARCH_ENGINE_URL`/SearXNG)への切り替え方法は [`docs/browsing.md`](./browsing.md)
+にまとめました(TUI/GUI共通)。
 
 ## 起動
 
@@ -44,8 +49,8 @@ core-agent GUI — model: deepseek-v4-flash @ http://127.0.0.1:8000/v1
 Listening on http://0.0.0.0:8787 (no auth — trusted networks only)
 ```
 
-ブラウザで `http://localhost:8787` を開いてください。同じLAN内の別端末(スマホ・別PC)から
-使いたい場合は、その端末のブラウザで `http://<このPCのIP>:8787` を開けば同様に使えます。
+ブラウザで `http://localhost:8787` を開いてください。同じLAN内の別のPCから使いたい場合は、
+その端末のブラウザで `http://<このPCのIP>:8787` を開けば同様に使えます。
 
 ### ⚠️ 認証はありません
 

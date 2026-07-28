@@ -1,48 +1,15 @@
 # core-agent(配布版)
 
-core-agentの単一実行ファイル版です。
+core-agentの単一実行ファイル版です。OpenAI/Anthropic互換の任意のLLMエンドポイントを使う
+コーディングエージェントで、TUI(ターミナル)版とGUI(ブラウザ)版があります。
 
-## 特徴
+## 必要なもの
 
-他のハーネスにはあまり無い、このツール固有の特徴です。
-
-- バックエンド差し替え可能: 多くのハーネスはネイティブengine直結や特定プロバイダ固定だが、
-  OpenAI/Anthropic互換なら接続先を自由に変更できる
-- メインのLLMがVision非対応でも、Vision対応モデルを呼び出せる
-- 画像・動画・音源を、必要に応じて別ウィンドウで開くことができる
-- skill機構で機能を自由に追加できる: 特定のプロトコルに縛られず、任意の言語でツールを追加でき、
-  coreは汚さない
-- cronで決まった時間に自動実行できる: 「毎日18時にニュースをまとめてメール送信」のような
-  定期タスクを組める
-- core自体は最小限に保つ設計方針: メール送信・画像生成のようなドメイン固有の機能は
-  全部skillに逃がし、ハーネス本体を肥大化させない
-
-## できること
-
-- **バックエンド差し替え可能**: `.env`の`OPENAI_BASE_URL`/`LLM_MODEL`を変えるだけで、ローカルの
-  推論サーバーからクラウドAPIまで任意のOpenAI互換エンドポイントに切り替え可能。
-  `LLM_PROTOCOL=anthropic`でAnthropicの`/v1/messages`形式にも対応。
-- **ツール一式**:
-  - `read`/`more`/`write`/`list`/`edit`/`search` — ファイル読み書き・検索・行単位編集
-  - `bash`/`bash_status`/`bash_stop` — シェルコマンドの非同期実行・監視・停止
-  - `visit_page`/`google_search` — 実Chromeを操作してWebページ閲覧・検索
-  - `view_image` — Vision対応の別モデルに画像を見せて質問する(メインモデルがVision非対応でも可)
-  - `show_media` — 画像・動画・音声を既定アプリで開いて人間に見せる
-- **skill機構**: `skills/`配下にツールを動的追加できる仕組み。同梱の`mail_send`(SMTP経由メール送信)・
-  `pdf_export`(Markdown→PDF変換)が実例
-- **Hooks**: tool実行の前後に外部コマンドを差し込める(`.core-agent/hooks.json`)
-- **cron(内蔵スケジューラー)**: `.core-agent/cron.json`を置いておけば、通常のREPL起動時にも
-  裏でスケジュール実行される(普段立ち上げっぱなしにするだけでOK)。REPLを開かずヘッドレスに
-  常駐させたいだけなら`--cron`専用モードも使える
-- **破壊的操作への確認ゲート**: `write`/`edit`/`bash`(・skillツール)は既定で実行前にy/N確認
-  (`--yes`で無効化可能)
-- **セッション保存/再開・context圧縮**: 長時間の会話でも履歴が自動要約され、途中で終了しても
-  `--session <name>`で再開できる
-- **色分け+簡易Markdownビューア**: 応答を見出し・箇条書き・強調・コードフェンス付きでANSI装飾
-- **画像のドラッグ&ドロップ対応**: ターミナルにドロップした画像パスを`view_image`/`show_media`が
-  正しく解決
-- **`!<command>`によるシェル直接実行**: LLMを介さずローカルでコマンド実行(`!cd`で作業ディレクトリ変更も可)
-- **プロジェクト指示ファイルの自動読込**: カレントディレクトリの`AGENT.md`を起動時にsystem promptへ反映
+| 必須度 | 何が | 何のため |
+|---|---|---|
+| 必須 | [Python](https://www.python.org/)(`python3`または`python`がPATH上) | LLMがグラフ作成・データ分析等で自発的にコードを書いて実行する用途で事実上必須。初回起動時に専用venvを自動作成 |
+| skillを使うなら | [Node.js](https://nodejs.org/) | 同梱skill(`mail_send`/`pdf_export`)がNode.jsスクリプトなため。skillを使わないなら不要 |
+| Web閲覧・検索を使うなら | Google Chrome | `google_search`/`visit_page`ツールに必要 |
 
 ## TUI版とGUI版、どちらを使う？
 
@@ -74,47 +41,15 @@ dist-bin/
 └── env.example        環境変数テンプレート
 ```
 
-## 設定ファイル一覧
-
-どのJSON/設定ファイルがどこに置かれるかのまとめです(詳細は各セクション参照)。
-
-`.env`・`skills/`・`.core-agent/hooks.json`・`.core-agent/cron.json`は、**起動したディレクトリ
-(カレント)を先に見て、そこに無ければ`~/.core-agent`(グローバル、`CORE_AGENT_HOME`で変更可。
-`~`はWindowsでは`C:\Users\<ユーザー名>`)にフォールバック**します。バイナリをPATHの通った場所に
-置いてどこからでも起動する使い方を想定した設計で、**セットアップは実質「初回起動して案内に
-従うだけ」**で済みます(下記参照)。`skills/`だけは両方をスキャンして合算します。
-
-| ファイル | 場所 | 用途 | 自動生成 |
-|---|---|---|---|
-| `.env` | カレント→`~/.core-agent`(フォールバック) | APIキー・モデル・各種env var | 初回起動時、無ければ`~/.core-agent/.env`にテンプレートを生成 |
-| `.core-agent/hooks.json` | カレントの`.core-agent/`→`~/.core-agent`(フォールバック) | tool実行前後のフック定義 | されない(使う場合のみ手動作成) |
-| `.core-agent/cron.json` | カレントの`.core-agent/`→`~/.core-agent`(フォールバック) | 定期実行ジョブ定義 | されない(使う場合のみ手動作成) |
-| `sessions/<name>.json` | 起動したディレクトリ直下の`sessions/`(フォールバック無し) | 会話履歴(`--session <name>`ごと) | される(初回のやり取り後) |
-| `skills/<name>/skill.json` | カレントの`skills/`+`~/.core-agent/skills/`(両方合算) | skillが提供するツールの宣言 | されない(同梱の`mail_send`・`pdf_export`のみ) |
-| ブラウザプロファイル | `~/.core-agent/browser` | `google_search`/`visit_page`用Chromeプロファイル | される(初回のブラウザ利用時) |
-
 ## セットアップ
 
 1. お使いのOSに合わせて、対応するフォルダ(`macos-arm64/`または`windows-x64/`)の中から、
-   使いたい方の実行ファイル(TUI版`core-agent`[`.exe`]、またはGUI版`core-agent-gui`[`.exe`]。
-   前述「TUI版とGUI版、どちらを使う？」参照)を、PATHの通った好きな場所に置いてください。
-2. [Python](https://www.python.org/)(`python3`または`python`がPATH上にあること)を
-   インストールしておいてください。初回起動時、Python専用のスクリプト実行環境(venv)を
-   自動で作るのに使われます(後述「Pythonスクリプトを書かせる場合」参照)。**Python無しで
-   起動すると、以下のように案内を出してそのまま終了します**(何もファイルは作られません):
-
-   ```
-   No Python interpreter found on PATH.
-   core-agent's first-run setup creates a dedicated Python venv (for PYTHON_PATH) as part of the
-   initial .env — install Python (python3), make sure it's on PATH, then run core-agent again.
-
-   Press any key to exit...
-   ```
-
-3. どこからでも良いので一度起動してください(下記「実行方法」参照)。`.env`がどこにも
-   見つからないので、専用のPython venvを作成した上で`~/.core-agent/.env`にテンプレートを
-   自動生成し(`PYTHON_PATH`にはそのvenvのパスが既に設定された状態)、以下のような
-   案内を出して終了します:
+   使いたい方の実行ファイル(TUI版`core-agent`[`.exe`]、またはGUI版`core-agent-gui`[`.exe`])を、
+   PATHの通った好きな場所に置いてください。
+2. どこからでも良いので一度起動してください(下記「実行方法」参照)。Pythonが無い場合は
+   案内を出してそのまま終了します(何もファイルは作られません)。Pythonがあれば、専用venvを
+   作成した上で`~/.core-agent/.env`にテンプレートを自動生成し、以下のような案内を出して
+   終了します:
 
    ```
    First run: created /Users/you/.core-agent/.env
@@ -130,7 +65,7 @@ dist-bin/
    Press any key to exit...
    ```
 
-4. 案内の通り`~/.core-agent/.env`をエディタで開いて値を埋めてください。最低限、以下を
+3. 案内の通り`~/.core-agent/.env`をエディタで開いて値を埋めてください。最低限、以下を
    設定すれば動きます:
 
    ```
@@ -155,42 +90,15 @@ dist-bin/
    `mail_send`スキルを使う場合は`EMAIL_*`系も設定してください。`pdf_export`(Markdown→PDF)は
    設定不要で、インストール済みのChromeでそのまま動きます。
 
-5. skillツール(`mail_send`・`pdf_export`)を使う場合は、配布物内の`skills/`フォルダを
-   案内メッセージに出た場所(`~/.core-agent/skills/`)にコピーし、[Node.js](https://nodejs.org/)を
-   インストールしてください(skillはNode.jsスクリプトをサブプロセス起動するため)。
-   skillを使わないなら、この手順は不要です。
-6. もう一度起動すれば通常通り動きます。
+4. skillツール(`mail_send`・`pdf_export`)を使う場合は、配布物内の`skills/`フォルダを
+   案内メッセージに出た場所(`~/.core-agent/skills/`)にコピーし、Node.jsをインストールして
+   ください。skillを使わないなら、この手順は不要です。
+5. もう一度起動すれば通常通り動きます。
 
 **プロジェクトごとに設定を変えたい場合**: 特定のフォルダに`cd`してから起動する場合は、
 そのフォルダ直下に`.env`(または`skills/`・`.core-agent/hooks.json`・`.core-agent/cron.json`)を
 置けば、グローバル側より優先されます。普段は上記のグローバル設定だけで十分です。
-
-### `.env`設定一覧
-
-| 変数名 | 必須/既定値 | 説明 |
-|---|---|---|
-| `CORE_AGENT_HOME` | 既定`~/.core-agent` | `.env`/`skills`/hooks/cronのグローバル置き場を変更(この変数自体は当然、環境変数かカレントの`.env`で設定する必要がある) |
-| `OPENAI_BASE_URL` | 既定`http://127.0.0.1:8000/v1` | メインLLMのOpenAI互換エンドポイント |
-| `OPENAI_API_KEY` | 任意 | メインLLMのAPIキー(不要なエンドポイントなら空でよい) |
-| `LLM_MODEL` | 既定`deepseek-v4-flash` | メインLLMのモデル名 |
-| `LLM_PROTOCOL` | 既定`openai` | `anthropic`を指定すると`/v1/messages`形式で通信 |
-| `VISION_BASE_URL` / `VISION_API_KEY` / `VISION_MODEL` | 任意 | `view_image`ツール用のVisionモデル。未設定ならVisionは使えない |
-| `MAX_TOOL_ROUNDS` | 既定`50` | 1ターンでの最大tool呼び出し回数(無限ループ防止) |
-| `MAX_CONTEXT_TOKENS` | 既定`60000` | 会話履歴の概算トークン数がこれを超えると古い部分を自動要約 |
-| `PYTHON_PATH` | 任意 | 指定するとPythonスクリプト実行時にシステムPythonの代わりにこのパスを使うようモデルに指示。`pip install`系コマンドも自動的にこのパスのpipへ書き換わる |
-| `CORE_AGENT_CHROME` | 任意 | Chrome実行ファイルのパスを明示指定(自動検出できない場合) |
-| `CORE_AGENT_CHROME_PROFILE` | 既定`~/.core-agent/browser` | ブラウザプロファイルの保存先を明示指定 |
-| `CORE_AGENT_CHROME_HEADLESS` | 任意(`1`で有効) | ヘッドレスモードで起動(既定は可視ウィンドウ) |
-| `CORE_AGENT_CHROME_WINDOW_SIZE` | 既定`480,360` | 可視ウィンドウのサイズ(px、`幅,高さ`) |
-| `CORE_AGENT_CHROME_WINDOW_POSITION` | 既定`0,0` | 可視ウィンドウの位置(px、`X,Y`。既定は画面左上) |
-| `NO_COLOR` | 任意 | 設定するとCLI出力のANSI色付け・Markdown装飾を無効化 |
-| `GUI_HOST` | 既定`0.0.0.0`(GUI版のみ) | GUIサーバーの待ち受けアドレス。既定はLAN内の他PCからもアクセス可能(認証なし、後述) |
-| `GUI_PORT` | 既定`8787`(GUI版のみ) | GUIサーバーのポート番号 |
-| `GUI_INLINE_MEDIA` | 既定`1`(GUI版のみ) | 画像/動画/音声をブラウザ内に直接表示するか。`0`にすると代わりにサーバー側マシンでネイティブアプリが開く |
-| `EMAIL_TO` | 任意 | `mail_send`スキル: `to`省略時のデフォルト送信先 |
-| `EMAIL_FROM` | 任意(既定は`EMAIL_SMTP_USER`) | `mail_send`スキル: 送信元アドレス |
-| `EMAIL_SMTP_SERVER` / `EMAIL_SMTP_USER` / `EMAIL_SMTP_PASSWORD` | `mail_send`使用時は必須 | `mail_send`スキル: SMTP接続情報(Gmailの場合`EMAIL_SMTP_PASSWORD`は2段階認証のアプリパスワード) |
-| `EMAIL_SMTP_PORT` | 既定`587` | `mail_send`スキル: SMTPポート番号 |
+(詳しいファイル配置ルールは後述「設定ファイル一覧」参照)
 
 ## 実行方法
 
@@ -239,7 +147,7 @@ core-agent GUI — model: deepseek-v4-flash @ http://127.0.0.1:8000/v1
 Listening on http://0.0.0.0:8787 (no auth — trusted networks only)
 ```
 
-ブラウザで **`http://localhost:8787`** を開いてください。同じLAN内の別のPC/スマホからも
+ブラウザで **`http://localhost:8787`** を開いてください。同じLAN内の別のPCからも
 `http://<このPCのIPアドレス>:8787`でアクセスできます(既定で認証は一切無いので、
 信頼できるネットワーク内だけで使ってください。外部に公開したい場合は`GUI_HOST`を
 `127.0.0.1`にして自分のPCからのみアクセス可能にするか、別途リバースプロキシ+認証を
@@ -266,6 +174,7 @@ TUI版は本体版(`npm run dev`)と同じオプションが使えます(GUI版�
 | `--session <name>` | セッション名を指定(未指定なら`default`)。`sessions/<name>.json`に保存/再開される |
 | `--yes` / `-y` | `write`/`edit`/`bash`実行前の確認をスキップ |
 | `--cron` | REPLを開かず、cron専用ヘッドレスモードで起動(`.core-agent/cron.json`が必要) |
+| `--version` / `-v` | バージョンを表示して終了 |
 
 REPL内コマンド(`/help`(`/?`でも可)/`/list`/`/auto`/`/reset`/`/exit`/`!<command>`)も本体版と同じです。
 応答生成中に`Esc`を押すと、そこまでのテキストを残したままストリーミングを中断できます
@@ -277,6 +186,80 @@ REPL内コマンド(`/help`(`/?`でも可)/`/list`/`/auto`/`/reset`/`/exit`/`!<c
 使ってください(`--yes`起動と違い、途中からON/OFFを切り替えられます)。**確認プロンプトが
 出ている最中でも**、`y`の代わりに`a`と答えれば「今回だけ承認」ではなく「今回承認+以降は
 ずっと自動承認」になります(`/auto`コマンドを別途打つ必要はありません)。
+
+## できること
+
+- **バックエンド差し替え可能**: `.env`の`OPENAI_BASE_URL`/`LLM_MODEL`を変えるだけで、ローカルの
+  推論サーバーからクラウドAPIまで任意のOpenAI互換エンドポイントに切り替え可能。
+  `LLM_PROTOCOL=anthropic`でAnthropicの`/v1/messages`形式にも対応。検索エンジンも
+  `SEARCH_ENGINE_URL`でセルフホスト(SearXNG等)に切り替えられる。
+- **ツール一式**:
+  - `read`/`more`/`write`/`list`/`edit`/`search` — ファイル読み書き・検索・行単位編集
+  - `bash`/`bash_status`/`bash_stop` — シェルコマンドの非同期実行・監視・停止
+  - `visit_page`/`google_search` — 実Chromeを操作してWebページ閲覧・検索
+  - `view_image` — Vision対応の別モデルに画像を見せて質問する(メインモデルがVision非対応でも可)
+  - `show_media` — 画像・動画・音声を既定アプリで開いて人間に見せる
+- **skill機構**: `skills/`配下にツールを動的追加できる仕組み(任意の言語で実装可能、
+  特定のプロトコルに縛られない)。coreは最小限に保ち、ドメイン固有の機能は全部skillに逃がす設計。
+  同梱の`mail_send`(SMTP経由メール送信)・`pdf_export`(Markdown→PDF変換)が実例
+- **Hooks**: tool実行の前後に外部コマンドを差し込める(`.core-agent/hooks.json`)
+- **cron(内蔵スケジューラー)**: `.core-agent/cron.json`を置いておけば、通常のREPL起動時にも
+  裏でスケジュール実行される(普段立ち上げっぱなしにするだけでOK)。REPLを開かずヘッドレスに
+  常駐させたいだけなら`--cron`専用モードも使える
+- **破壊的操作への確認ゲート**: `write`/`edit`/`bash`(・skillツール)は既定で実行前にy/N確認
+  (`--yes`で無効化可能)
+- **セッション保存/再開・context圧縮**: 長時間の会話でも履歴が自動要約され、途中で終了しても
+  `--session <name>`で再開できる
+- **色分け+簡易Markdownビューア**: 応答を見出し・箇条書き・強調・コードフェンス付きでANSI装飾
+- **画像のドラッグ&ドロップ対応**: ターミナルにドロップした画像パスを`view_image`/`show_media`が
+  正しく解決
+- **`!<command>`によるシェル直接実行**: LLMを介さずローカルでコマンド実行(`!cd`で作業ディレクトリ変更も可)
+- **プロジェクト指示ファイルの自動読込**: カレントディレクトリの`AGENT.md`を起動時にsystem promptへ反映
+
+## 設定ファイル一覧
+
+どのJSON/設定ファイルがどこに置かれるかのまとめです。
+
+`.env`・`skills/`・`.core-agent/hooks.json`・`.core-agent/cron.json`は、**起動したディレクトリ
+(カレント)を先に見て、そこに無ければ`~/.core-agent`(グローバル、`CORE_AGENT_HOME`で変更可。
+`~`はWindowsでは`C:\Users\<ユーザー名>`)にフォールバック**します。`skills/`だけは両方をスキャンして合算します。
+
+| ファイル | 場所 | 用途 | 自動生成 |
+|---|---|---|---|
+| `.env` | カレント→`~/.core-agent`(フォールバック) | APIキー・モデル・各種env var | 初回起動時、無ければ`~/.core-agent/.env`にテンプレートを生成 |
+| `.core-agent/hooks.json` | カレントの`.core-agent/`→`~/.core-agent`(フォールバック) | tool実行前後のフック定義 | されない(使う場合のみ手動作成) |
+| `.core-agent/cron.json` | カレントの`.core-agent/`→`~/.core-agent`(フォールバック) | 定期実行ジョブ定義 | されない(使う場合のみ手動作成) |
+| `sessions/<name>.json` | 起動したディレクトリ直下の`sessions/`(フォールバック無し) | 会話履歴(`--session <name>`ごと) | される(初回のやり取り後) |
+| `skills/<name>/skill.json` | カレントの`skills/`+`~/.core-agent/skills/`(両方合算) | skillが提供するツールの宣言 | されない(同梱の`mail_send`・`pdf_export`のみ) |
+| ブラウザプロファイル | `~/.core-agent/browser` | `google_search`/`visit_page`用Chromeプロファイル | される(初回のブラウザ利用時) |
+
+### `.env`設定一覧
+
+| 変数名 | 必須/既定値 | 説明 |
+|---|---|---|
+| `CORE_AGENT_HOME` | 既定`~/.core-agent` | `.env`/`skills`/hooks/cronのグローバル置き場を変更(この変数自体は当然、環境変数かカレントの`.env`で設定する必要がある) |
+| `OPENAI_BASE_URL` | 既定`http://127.0.0.1:8000/v1` | メインLLMのOpenAI互換エンドポイント |
+| `OPENAI_API_KEY` | 任意 | メインLLMのAPIキー(不要なエンドポイントなら空でよい) |
+| `LLM_MODEL` | 既定`deepseek-v4-flash` | メインLLMのモデル名 |
+| `LLM_PROTOCOL` | 既定`openai` | `anthropic`を指定すると`/v1/messages`形式で通信 |
+| `VISION_BASE_URL` / `VISION_API_KEY` / `VISION_MODEL` | 任意 | `view_image`ツール用のVisionモデル。未設定ならVisionは使えない |
+| `MAX_TOOL_ROUNDS` | 既定`50` | 1ターンでの最大tool呼び出し回数(無限ループ防止) |
+| `MAX_CONTEXT_TOKENS` | 既定`60000` | 会話履歴の概算トークン数がこれを超えると古い部分を自動要約 |
+| `PYTHON_PATH` | 任意 | 指定するとPythonスクリプト実行時にシステムPythonの代わりにこのパスを使うようモデルに指示。`pip install`系コマンドも自動的にこのパスのpipへ書き換わる |
+| `CORE_AGENT_CHROME` | 任意 | Chrome実行ファイルのパスを明示指定(自動検出できない場合) |
+| `CORE_AGENT_CHROME_PROFILE` | 既定`~/.core-agent/browser` | ブラウザプロファイルの保存先を明示指定 |
+| `CORE_AGENT_CHROME_HEADLESS` | 任意(`1`で有効) | ヘッドレスモードで起動(既定は可視ウィンドウ) |
+| `CORE_AGENT_CHROME_WINDOW_SIZE` | 既定`480,360` | 可視ウィンドウのサイズ(px、`幅,高さ`) |
+| `CORE_AGENT_CHROME_WINDOW_POSITION` | 既定`0,0` | 可視ウィンドウの位置(px、`X,Y`。既定は画面左上) |
+| `SEARCH_ENGINE_URL` | 任意 | セルフホストの検索エンジン(SearXNG等、`?q=...&format=json`でJSONを返すもの)のベースURL。設定すると`google_search`はChromeを一切使わずこのURLへ直接fetchする(未設定なら従来通りブラウザ経由のGoogle検索) |
+| `NO_COLOR` | 任意 | 設定するとCLI出力のANSI色付け・Markdown装飾を無効化 |
+| `GUI_HOST` | 既定`0.0.0.0`(GUI版のみ) | GUIサーバーの待ち受けアドレス。既定はLAN内の他PCからもアクセス可能(認証なし、後述) |
+| `GUI_PORT` | 既定`8787`(GUI版のみ) | GUIサーバーのポート番号 |
+| `GUI_INLINE_MEDIA` | 既定`1`(GUI版のみ) | 画像/動画/音声をブラウザ内に直接表示するか。`0`にすると代わりにサーバー側マシンでネイティブアプリが開く |
+| `EMAIL_TO` | 任意 | `mail_send`スキル: `to`省略時のデフォルト送信先 |
+| `EMAIL_FROM` | 任意(既定は`EMAIL_SMTP_USER`) | `mail_send`スキル: 送信元アドレス |
+| `EMAIL_SMTP_SERVER` / `EMAIL_SMTP_USER` / `EMAIL_SMTP_PASSWORD` | `mail_send`使用時は必須 | `mail_send`スキル: SMTP接続情報(Gmailの場合`EMAIL_SMTP_PASSWORD`は2段階認証のアプリパスワード) |
+| `EMAIL_SMTP_PORT` | 既定`587` | `mail_send`スキル: SMTPポート番号 |
 
 ## Chromeウィンドウについて
 
@@ -345,13 +328,6 @@ PYTHON_PATH=/path/to/your/project/venv/bin/python   # Windowsは venv\Scripts\py
 ハードコードしがちですが、**Windowsには`/tmp`が存在しません**。system promptには
 OSごとに正しい一時ディレクトリの実際の値が自動的に埋め込まれ、モデルにはそちらを使うよう
 指示しています(設定不要)。
-
-## 必要環境
-
-- **Node.js**: skillツール(`mail_send`等)を使う場合のみ必要です(セットアップ手順3参照)。
-  core機能(read/write/edit/search/bash/visit_page/google_search/view_image/show_media)は
-  実行ファイル単体で動作します。
-- **Google Chrome**: `google_search`/`visit_page`ツールに必要です。
 
 ## 制限事項・既知の問題
 
