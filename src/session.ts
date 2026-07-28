@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir, readdir, stat } from "node:fs/promises";
+import { readFile, writeFile, mkdir, readdir, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import type { Message } from "./types.js";
 
@@ -29,6 +29,15 @@ export async function loadSession(name: string): Promise<Message[]> {
   const filePath = sessionFilePath(name);
   const raw = await readFile(filePath, "utf-8");
   return JSON.parse(raw) as Message[];
+}
+
+export async function deleteSession(name: string): Promise<void> {
+  const filePath = sessionFilePath(name);
+  try {
+    await unlink(filePath);
+  } catch (err: any) {
+    if (err?.code !== "ENOENT") throw err;
+  }
 }
 
 export async function listSessions(): Promise<SessionInfo[]> {

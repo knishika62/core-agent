@@ -18,8 +18,8 @@ export const WEB_UI_HTML = String.raw`<!doctype html>
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #1e1e1e; --fg: #e6e6e6; --dim: #9a9a9a; --border: #3a3a3a;
-      --bubble-user: #223349; --bubble-assistant: #2a2a2a; --accent: #5b9dff;
+      --bg: #121212; --fg: #cfcfcf; --dim: #9a9a9a; --border: #333333;
+      --bubble-user: #1e2e42; --bubble-assistant: #232323; --accent: #5b9dff;
       --error: #ff6b5e; --warn: #e0b84a;
     }
   }
@@ -50,20 +50,30 @@ export const WEB_UI_HTML = String.raw`<!doctype html>
   #status dd { margin: 0; word-break: break-all; }
   #sessions { flex: 1; overflow-y: auto; margin-bottom: 8px; }
   .session-item {
-    padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 13px;
-    display: flex; justify-content: space-between; gap: 6px;
+    padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;
+    display: flex; justify-content: space-between; gap: 6px; align-items: center;
   }
   .session-item:hover { background: var(--bubble-assistant); }
   .session-item.active { background: var(--accent); color: white; }
-  .session-item .meta { color: var(--dim); font-size: 11px; }
-  .session-item.active .meta { color: #dbe8ff; }
+  .session-item .meta { color: var(--dim); font-size: 10px; }
+  .session-item.active .meta { color: #1c2430; }
+  .session-item .left { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
+  .session-item .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .session-delete {
+    flex: none; border: none; background: none; color: var(--dim); font-size: 13px;
+    line-height: 1; padding: 0 2px; cursor: pointer;
+  }
+  .session-delete:hover { color: var(--error); }
+  .session-item.active .session-delete { color: #5a729c; }
+  .session-item.active .session-delete:hover { color: #fff; }
   button {
     font-family: inherit; font-size: 13px; cursor: pointer; border: 1px solid var(--border);
     background: var(--bubble-assistant); color: var(--fg); border-radius: 4px; padding: 6px 10px;
   }
   button:hover { filter: brightness(1.1); }
   button:disabled { opacity: 0.5; cursor: default; }
-  #toolsPanel { margin-top: 8px; color: var(--dim); font-size: 12px; }
+  #newSessionBtn { font-size: 12px; }
+  #toolsPanel { margin-top: 8px; color: var(--dim); font-size: 10px; }
   #toolsPanel ul { padding-left: 16px; margin: 6px 0; }
   main { flex: 1; display: flex; flex-direction: column; min-width: 0; position: relative; }
   header {
@@ -80,6 +90,9 @@ export const WEB_UI_HTML = String.raw`<!doctype html>
   #headerBody { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
   header #sessionName { font-weight: bold; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   header label { color: var(--dim); font-size: 13px; display: flex; align-items: center; gap: 4px; }
+  .font-size-control { display: flex; align-items: center; gap: 4px; color: var(--dim); }
+  .font-size-control button { padding: 2px 7px; font-size: 11px; line-height: 1; }
+  #fontSizeLabel { font-size: 11px; min-width: 30px; text-align: center; }
   #log { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
   .msg { max-width: 80%; padding: 8px 12px; border-radius: 8px; word-wrap: break-word; }
   .msg.user { align-self: flex-end; background: var(--bubble-user); white-space: pre-wrap; }
@@ -209,6 +222,11 @@ export const WEB_UI_HTML = String.raw`<!doctype html>
     <header id="header">
       <div id="headerBody">
         <span id="sessionName"></span>
+        <span class="font-size-control">
+          <button id="fontDecBtn" title="Decrease text size">A-</button>
+          <span id="fontSizeLabel"></span>
+          <button id="fontIncBtn" title="Increase text size">A+</button>
+        </span>
         <label><input type="checkbox" id="toolLogToggle"> tools</label>
         <label><input type="checkbox" id="autoToggle"> auto</label>
         <button id="resetBtn">reset</button>
@@ -267,6 +285,9 @@ export const WEB_UI_HTML = String.raw`<!doctype html>
     newSessionBtn: document.getElementById("newSessionBtn"),
     toolsList: document.getElementById("toolsList"),
     sessionName: document.getElementById("sessionName"),
+    fontDecBtn: document.getElementById("fontDecBtn"),
+    fontIncBtn: document.getElementById("fontIncBtn"),
+    fontSizeLabel: document.getElementById("fontSizeLabel"),
     toolLogToggle: document.getElementById("toolLogToggle"),
     autoToggle: document.getElementById("autoToggle"),
     resetBtn: document.getElementById("resetBtn"),
@@ -662,12 +683,49 @@ export const WEB_UI_HTML = String.raw`<!doctype html>
     sessions.forEach(function (s) {
       var div = document.createElement("div");
       div.className = "session-item" + (s.name === state.sessionName ? " active" : "");
-      div.innerHTML =
-        "<span>" + escapeHtml(s.name) + "</span>" +
-        '<span class="meta">' + s.messageCount + " · " + formatRelativeTime(s.updatedAt) + "</span>";
       div.addEventListener("click", function () { switchSession(s.name); });
+
+      var left = document.createElement("div");
+      left.className = "left";
+      var nameEl = document.createElement("span");
+      nameEl.className = "name";
+      nameEl.textContent = s.name;
+      var metaEl = document.createElement("span");
+      metaEl.className = "meta";
+      metaEl.textContent = s.messageCount + " · " + formatRelativeTime(s.updatedAt);
+      left.appendChild(nameEl);
+      left.appendChild(metaEl);
+      div.appendChild(left);
+
+      var delBtn = document.createElement("button");
+      delBtn.className = "session-delete";
+      delBtn.title = "Delete session";
+      delBtn.textContent = "×";
+      delBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        deleteSessionByName(s.name);
+      });
+      div.appendChild(delBtn);
+
       el.sessions.appendChild(div);
     });
+  }
+
+  // Deleting the session currently open needs somewhere to land afterward —
+  // falls back to whatever's left in the list, or "default" (server-side
+  // recreates "default" immediately on delete, so this always resolves to
+  // a real session rather than an empty sidebar).
+  async function deleteSessionByName(name) {
+    if (!confirm('Delete session "' + name + '"? This cannot be undone.')) return;
+    await api("/api/session/" + encodeURIComponent(name), { method: "DELETE" });
+    if (name === state.sessionName) {
+      var res = await api("/api/sessions");
+      var remaining = await res.json();
+      var next = remaining.length ? remaining[0].name : "default";
+      await switchSession(next);
+    } else {
+      await loadSessionList();
+    }
   }
 
   async function switchSession(name) {
@@ -731,6 +789,35 @@ export const WEB_UI_HTML = String.raw`<!doctype html>
   try {
     if (localStorage.getItem(HEADER_COLLAPSED_KEY) === "1") setHeaderCollapsed(true);
   } catch (e) { /* ignore */ }
+
+  // Text size of the chat column (right side) only — the sidebar/header
+  // chrome stays fixed. Applied to #log so it cascades into .msg/.sys-line
+  // (their headings/etc. use em-relative sizing already, so this scales the
+  // whole message body proportionally rather than just the base text). Also
+  // applied to #input — it's the same "right side" column as the log, just
+  // below it, so it should scale along with everything else there.
+  var FONT_SIZE_KEY = "core-agent-font-size";
+  var FONT_SIZE_MIN = 11;
+  var FONT_SIZE_MAX = 22;
+  var FONT_SIZE_DEFAULT = 14;
+  var fontSize = FONT_SIZE_DEFAULT;
+  function applyFontSize(size) {
+    fontSize = Math.max(FONT_SIZE_MIN, Math.min(FONT_SIZE_MAX, size));
+    el.log.style.fontSize = fontSize + "px";
+    el.input.style.fontSize = fontSize + "px";
+    el.fontSizeLabel.textContent = fontSize + "px";
+    try { localStorage.setItem(FONT_SIZE_KEY, String(fontSize)); } catch (e) { /* ignore */ }
+  }
+  el.fontDecBtn.addEventListener("click", function () { applyFontSize(fontSize - 1); });
+  el.fontIncBtn.addEventListener("click", function () { applyFontSize(fontSize + 1); });
+  (function () {
+    var saved = FONT_SIZE_DEFAULT;
+    try {
+      var stored = parseInt(localStorage.getItem(FONT_SIZE_KEY), 10);
+      if (!isNaN(stored)) saved = stored;
+    } catch (e) { /* ignore */ }
+    applyFontSize(saved);
+  })();
 
   // Whole-session show/hide for [tool call]/[tool result] lines — they can
   // get long and numerous enough to bury the actual conversation. A CSS

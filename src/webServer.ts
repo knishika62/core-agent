@@ -14,7 +14,7 @@ import type { ConfirmFn } from "./tools/context.js";
 import type { Message } from "./types.js";
 import { config, initConfig } from "./config.js";
 import { loadEnvFile } from "./envLoader.js";
-import { loadSession, saveSession, listSessions } from "./session.js";
+import { loadSession, saveSession, listSessions, deleteSession } from "./session.js";
 import { loadProjectInstructions, buildSystemPrompt } from "./projectInstructions.js";
 import { closeBrowser } from "./tools/browser.js";
 import { loadSkills } from "./skills.js";
@@ -328,6 +328,26 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<Se
     res.end(JSON.stringify({ ok: true }));
   }
 
+  /**
+   * Deletes a session's persisted file and drops its in-memory state. The
+   * "default" session is the client's fallback when the sidebar list is
+   * otherwise empty (see init()'s `sessions.length ? sessions[0].name :
+   * "default"`), so deleting it would silently leave nothing for a client
+   * to fall back to until someone happened to type "default" again —
+   * recreating it immediately (and persisting the empty session right
+   * away, not just lazily on next access) keeps that fallback always valid.
+   */
+  async function handleDeleteSession(res: ServerResponse, name: string): Promise<void> {
+    await deleteSession(name);
+    sessions.delete(name);
+    if (name === "default") {
+      const fresh = await getOrCreateSession("default");
+      await saveSession("default", fresh.messages);
+    }
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: true }));
+  }
+
   async function handleAuto(req: IncomingMessage, res: ServerResponse, name: string): Promise<void> {
     const body = await readJsonBody(req);
     const session = await getOrCreateSession(name);
@@ -477,6 +497,9 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<Se
       }
       if (req.method === "POST" && (m = pathname.match(/^\/api\/session\/([^/]+)\/reset$/))) {
         return await handleReset(res, decodeURIComponent(m[1]));
+      }
+      if (req.method === "DELETE" && (m = pathname.match(/^\/api\/session\/([^/]+)$/))) {
+        return await handleDeleteSession(res, decodeURIComponent(m[1]));
       }
       if (req.method === "POST" && (m = pathname.match(/^\/api\/session\/([^/]+)\/auto$/))) {
         return await handleAuto(req, res, decodeURIComponent(m[1]));
