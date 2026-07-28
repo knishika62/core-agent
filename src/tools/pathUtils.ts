@@ -15,6 +15,10 @@ export function cleanDroppedPath(input: string): string {
       s = s.slice(1, -1);
     }
   }
+  // Windows paths use "\" as the separator itself, so this escape-undoing
+  // (meant for POSIX terminal drag-drop escaping) must not run there — it
+  // would eat every path separator, e.g. "C:\Users\x\y.png" -> "C:Usersxy.png".
+  if (process.platform === "win32") return s;
   return s.replace(/\\(.)/g, "$1");
 }
 
