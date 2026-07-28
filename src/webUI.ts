@@ -550,7 +550,7 @@ export const WEB_UI_HTML = String.raw`<!doctype html>
     var kind = MEDIA_EXT[ext] || "file";
 
     var url = "/api/media?path=" + encodeURIComponent(mediaPath);
-    var filename = mediaPath.split("/").pop() || "download";
+    var filename = mediaPath.split(/[\\/]/).pop() || "download";
 
     var container = document.createElement("div");
     container.className = "media-preview" + (kind === "file" ? " file-kind" : "");
