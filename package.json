@@ -11,12 +11,17 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/cli.js",
     "dev": "tsx src/cli.ts",
+    "dev:gui": "tsx src/webServer.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "bundle": "esbuild src/cli.ts --bundle --platform=node --format=cjs --define:import.meta.url=import_meta_url --banner:js=\"const import_meta_url = require('url').pathToFileURL(__filename).href;\" --outfile=bundle/cli.cjs",
+    "bundle:gui": "esbuild src/webServer.ts --bundle --platform=node --format=cjs --define:import.meta.url=import_meta_url --banner:js=\"const import_meta_url = require('url').pathToFileURL(__filename).href;\" --outfile=bundle/webServer.cjs",
     "package:macos": "npm run bundle && pkg bundle/cli.cjs --public --targets node20-macos-arm64 --output dist-bin/macos-arm64/core-agent",
     "package:win": "npm run bundle && pkg bundle/cli.cjs --public --targets node22-win-x64 --output dist-bin/windows-x64/core-agent.exe",
-    "package": "npm run package:macos && npm run package:win"
+    "package:gui:macos": "npm run bundle:gui && pkg bundle/webServer.cjs --public --targets node20-macos-arm64 --output dist-bin/macos-arm64/core-agent-gui",
+    "package:gui:win": "npm run bundle:gui && pkg bundle/webServer.cjs --public --targets node22-win-x64 --output dist-bin/windows-x64/core-agent-gui.exe",
+    "package:gui": "npm run package:gui:macos && npm run package:gui:win",
+    "package": "npm run package:macos && npm run package:win && npm run package:gui"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

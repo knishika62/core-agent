@@ -38,6 +38,13 @@ export class ToolContext {
    *  (used by tests and programmatic callers); cli.ts wires this to a
    *  y/N prompt. */
   confirm?: ConfirmFn;
+  /** When true, show_media skips opening a native app locally. The TUI
+   *  needs that local open() — it's the only way a terminal can show media
+   *  at all — but the GUI renders media inline in the browser instead, so
+   *  the server machine also popping open a native app (of no use to a
+   *  remote LAN viewer, and just redundant even for a local one) is exactly
+   *  the noise this suppresses. Undefined/false = TUI's default. */
+  skipMediaOpen?: boolean;
   private nextBashJobId = 1;
 
   constructor(cwd: string = process.cwd(), confirm?: ConfirmFn) {

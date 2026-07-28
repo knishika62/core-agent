@@ -29,6 +29,10 @@ export async function toolShowMedia(
     return { content: `Tool error: could not open ${rawPath}: ${err.message}\n`, isError: true };
   }
 
+  if (ctx.skipMediaOpen) {
+    return { content: `Shown ${rawPath} to the user.\n` };
+  }
+
   try {
     await open(filePath);
   } catch (err: any) {

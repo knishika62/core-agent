@@ -26,6 +26,9 @@ export const config = {
   maxContextTokens: 60_000,
   pythonPath: "",
   searchEngineUrl: "",
+  guiHost: "0.0.0.0",
+  guiPort: 8787,
+  guiInlineMedia: true,
 };
 
 /** Call once, after loadEnvFile() has populated process.env, and before
@@ -54,6 +57,20 @@ export function initConfig(): void {
   // SearXNG instance) instead of driving a real Chrome against google.com —
   // no browser warmup/bot-detection concerns at all on that path.
   config.searchEngineUrl = process.env.SEARCH_ENGINE_URL ?? "";
+  // Web GUI (src/webServer.ts) listen address/port. Defaults to all
+  // interfaces so it's reachable from other devices on the LAN by default;
+  // both are overridable per the usual .env pattern.
+  config.guiHost = process.env.GUI_HOST ?? "0.0.0.0";
+  config.guiPort = Number(process.env.GUI_PORT ?? 8787);
+  // show_media results render inline in the session (image/video/audio
+  // streamed from the server over HTTP) by default — this is what makes
+  // show_media work at all when the browser is on a different machine than
+  // the server (LAN access), since opening a native app is always local to
+  // wherever the server process runs. Set to "0" to disable if you'd rather
+  // not have the server stream arbitrary file contents over HTTP (same
+  // no-auth trust model as the rest of the GUI, but an explicit opt-out for
+  // anyone who wants one).
+  config.guiInlineMedia = process.env.GUI_INLINE_MEDIA !== "0";
 }
 
 export function visionConfigured(): boolean {

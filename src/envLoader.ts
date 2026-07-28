@@ -43,6 +43,18 @@ MAX_CONTEXT_TOKENS=60000
 # Set to disable colorized/Markdown CLI output (also auto-disabled for non-TTY output).
 # NO_COLOR=1
 
+# Web GUI (src/webServer.ts, "npm run dev:gui"). Listens on all interfaces
+# (LAN-reachable) by default — no authentication, so only run this on a
+# trusted network. Both overridable.
+# GUI_HOST=0.0.0.0
+# GUI_PORT=8787
+# show_media (image/video/audio) renders inline in the session by default,
+# streamed from the server over HTTP — needed for it to work at all when
+# the browser is on a different machine than the server (LAN access). Set
+# to 0 to disable if you'd rather the server not stream file contents over
+# HTTP.
+# GUI_INLINE_MEDIA=1
+
 # Absolute path to a Python interpreter (typically inside a venv you manage
 # yourself). If set, the agent is told to use this instead of a bare
 # python/python3, so it doesn't pip-install into your system Python.

@@ -56,4 +56,16 @@ describe("toolShowMedia", () => {
     expect(result.isError).toBeUndefined();
     expect(openMock).toHaveBeenCalledWith(path.join(dir, "my file.mp4"));
   });
+
+  it("skips open() when ctx.skipMediaOpen is set (GUI's inline viewer takes its place)", async () => {
+    const { toolShowMedia } = await import("./showMedia.js");
+    await writeFile(path.join(dir, "photo.png"), "fake-png-bytes");
+    ctx.skipMediaOpen = true;
+
+    const result = await toolShowMedia({ path: "photo.png" }, ctx);
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content).toContain("photo.png");
+    expect(openMock).not.toHaveBeenCalled();
+  });
 });
