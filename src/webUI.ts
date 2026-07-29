@@ -94,7 +94,7 @@ export const WEB_UI_HTML = String.raw`<!doctype html>
   .font-size-control button { padding: 2px 7px; font-size: 11px; line-height: 1; }
   #fontSizeLabel { font-size: 11px; min-width: 30px; text-align: center; }
   #log { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
-  .msg { max-width: 80%; padding: 8px 12px; border-radius: 8px; word-wrap: break-word; }
+  .msg { max-width: 80%; padding: 8px 12px; border-radius: 8px; word-wrap: break-word; line-height: 1.6; }
   .msg.user { align-self: flex-end; background: var(--bubble-user); white-space: pre-wrap; }
   .msg.assistant { align-self: flex-start; background: var(--bubble-assistant); }
   .msg code { background: rgba(127,127,127,0.2); padding: 0 3px; border-radius: 3px; }
