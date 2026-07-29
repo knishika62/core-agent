@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { tmpdir } from "node:os";
+import path from "node:path";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -40,6 +41,16 @@ describe("baseSystemPrompt", () => {
     const prompt = baseSystemPrompt();
     expect(prompt).toContain("--cron");
     expect(prompt).toContain("duplicate runs");
+  });
+
+  it("tells the model the absolute path to the global skills directory", async () => {
+    const globalDir = "/tmp/core-agent-test-home";
+    vi.stubEnv("CORE_AGENT_HOME", globalDir);
+    vi.resetModules();
+    const { baseSystemPrompt } = await import("./systemPrompt.js");
+    const prompt = baseSystemPrompt();
+    expect(prompt).toContain(path.join(globalDir, "skills"));
+    expect(prompt).toContain("skill.json");
   });
 
   it("states the real configured model name and denies being Claude/Anthropic", async () => {

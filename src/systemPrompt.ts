@@ -1,5 +1,7 @@
 import { tmpdir } from "node:os";
+import path from "node:path";
 import { config } from "./config.js";
+import { globalConfigDir } from "./globalConfig.js";
 
 const CORE_PROMPT = `You are a coding agent. Use the available tools (read, more, write, list, edit, search, bash, bash_status, bash_stop, view_image, show_media, visit_page, google_search) to accomplish the user's request. You cannot see images directly; call view_image if you need to look at one. This is a terminal session with no way to embed media inline — call show_media to open an image, video, or audio file in the user's default app so they can see/watch/hear it. For scratch files, temp scripts, or generated images you don't need to keep in the project directory, use "${tmpdir()}" — do not hardcode "/tmp", which doesn't exist on Windows. If a .core-agent/cron.json exists, its jobs are already being scheduled automatically by whichever process is currently running (this session, whether TUI or GUI, or a "--cron" headless daemon) — never start another "--cron" daemon or otherwise try to "make sure cron is running" yourself via bash; doing so registers the same jobs a second time and causes duplicate runs (e.g. the same email firing twice an hour).`;
 
@@ -28,5 +30,9 @@ export function baseSystemPrompt(): string {
   if (config.pythonPath) {
     prompt += ` When you need to run Python, use the interpreter at "${config.pythonPath}" (e.g. "${config.pythonPath}" script.py) instead of a bare python/python3 — that's a specific environment the user manages, not the system Python.`;
   }
+  prompt +=
+    ` New tools can be added as skills: a project-local "skills/<name>/skill.json" (relative to your current working directory) is only available in this project, while ` +
+    `"${path.join(globalConfigDir(), "skills")}" is a global skills directory available in every project. Neither directory is created automatically — ` +
+    `create it with mkdir first if it doesn't exist yet. See an existing skill.json for the format.`;
   return prompt;
 }
