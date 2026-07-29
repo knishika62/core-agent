@@ -1,6 +1,6 @@
 {
   "name": "core-agent",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "private": true,
   "type": "module",
   "description": "OpenAI-compatible LLM backend swappable agent harness (rewrite of antirez/ds4's ds4_agent)",
