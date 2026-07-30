@@ -20,12 +20,14 @@ npm run package
 
 echo "==> Copying skills/ into dist-bin/skills"
 mkdir -p dist-bin/skills
-for skill_dir in skills/*/; do
-  name="$(basename "$skill_dir")"
-  # comfyui_image / ltx_video_faceid are environment-specific (point at one
-  # person's local ComfyUI server(s), hardcoded LAN IP included) and are
-  # deliberately gitignored — never bundle them.
-  if [ "$name" = "comfyui_image" ] || [ "$name" = "ltx_video_faceid" ]; then
+# Allowlist, not a blocklist: only these two generic skills are meant for
+# public distribution. Anything else under skills/ (environment-specific —
+# hardcoded local server IPs, personal setup) is skipped by default, so a
+# script meant for a public repo never has to name what it's excluding.
+DISTRIBUTABLE_SKILLS="mail_send pdf_export"
+for name in $DISTRIBUTABLE_SKILLS; do
+  skill_dir="skills/$name/"
+  if [ ! -d "$skill_dir" ]; then
     continue
   fi
   cp -R "$skill_dir" "dist-bin/skills/$name"
