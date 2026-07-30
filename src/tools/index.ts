@@ -11,6 +11,7 @@ import { toolVisitPage } from "./visitPage.js";
 import { toolGoogleSearch } from "./googleSearch.js";
 import { toolShowMedia } from "./showMedia.js";
 import { runPreToolUseHooks, runPostToolUseHooks } from "../hooks.js";
+import { loadSkills } from "../skills.js";
 
 export { ToolContext } from "./context.js";
 
@@ -205,7 +206,16 @@ export function registerTool(definition: ToolDefinition, handler: ToolFn): boole
 }
 
 export async function executeToolCall(call: ToolCall, ctx: ToolContext): Promise<ToolResult> {
-  const handler = handlers[call.name];
+  let handler = handlers[call.name];
+  if (!handler) {
+    // Skills are normally scanned once at startup, so a skill.json authored
+    // mid-session (e.g. by the model itself, via write) wouldn't be callable
+    // without a restart. Re-scanning here — only on a miss, not per call —
+    // picks it up for free: loadSkills()/registerTool() are idempotent for
+    // already-registered names, so this costs nothing on the common path.
+    await loadSkills(ctx.cwd);
+    handler = handlers[call.name];
+  }
   if (!handler) {
     return { content: `Tool error: unknown tool ${call.name}\n`, isError: true };
   }

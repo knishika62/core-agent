@@ -112,6 +112,63 @@ describe("loadSkills", () => {
     expect(loaded).toEqual(["global_echoer/skill_echo_global"]);
   });
 
+  it("honors a per-tool timeout_ms override instead of the 2-minute default", async () => {
+    // Regression coverage: a skill whose own poll loop legitimately runs long
+    // (e.g. ltx_video_faceid waiting on a slow GPU job) needs its execSync
+    // wrapper to not kill it before that loop finishes. A short override here
+    // proves the field is actually read, without a real test waiting on the
+    // 2-minute default to confirm the *unbounded* case.
+    const skillDir = path.join(dir, "skills", "slow_skill");
+    await mkdir(skillDir, { recursive: true });
+    await writeFile(
+      path.join(skillDir, "skill.json"),
+      JSON.stringify({
+        name: "slow_skill",
+        tools: [
+          {
+            name: "skill_slow",
+            description: "test tool",
+            parameters: { type: "object", properties: {} },
+            command: "node script.js",
+            timeout_ms: 100,
+          },
+        ],
+      }),
+    );
+    await writeFile(
+      path.join(skillDir, "script.js"),
+      `setTimeout(() => process.stdout.write("done"), 1000);`,
+    );
+
+    await loadSkills(dir);
+    const ctx = new ToolContext(dir);
+    const result = await executeToolCall({ id: "1", name: "skill_slow", arguments: "{}" }, ctx);
+    expect(result.isError).toBe(true);
+  });
+
+  it("re-scanning an already-loaded skill doesn't re-warn or re-register it", async () => {
+    // Regression coverage: runTurn() re-scans skills every round so a skill
+    // written mid-session is usable without a restart, which means an
+    // already-loaded skill gets rediscovered on every round too — this must
+    // stay a silent no-op (see [[#skill-hot-reload]] in CLAUDE.md), not spam
+    // stderr with the "already exists" collision warning once per round.
+    await writeSkill(dir, "repeat_scan", "skill_repeat", "process.stdout.write('ok')");
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const first = await loadSkills(dir);
+      expect(first).toEqual(["repeat_scan/skill_repeat"]);
+      errorSpy.mockClear();
+
+      for (let i = 0; i < 5; i++) {
+        const again = await loadSkills(dir);
+        expect(again).toEqual(["repeat_scan/skill_repeat"]);
+      }
+      expect(errorSpy).not.toHaveBeenCalled();
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
   it("merges cwd and global skills, preferring the cwd one on a name collision", async () => {
     await writeSkill(dir, "local_pkg", "skill_shared", "process.stdout.write('local')");
     await writeSkill(globalDir, "global_pkg", "skill_shared", "process.stdout.write('global')");

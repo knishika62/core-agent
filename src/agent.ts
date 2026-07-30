@@ -2,6 +2,7 @@ import { config } from "./config.js";
 import { chatCompletionStream } from "./llmClient.js";
 import { executeToolCall, toolDefinitions, ToolContext } from "./tools/index.js";
 import { maybeCompact } from "./compaction.js";
+import { loadSkills } from "./skills.js";
 import type { Message } from "./types.js";
 
 export interface RunTurnOptions {
@@ -36,6 +37,13 @@ export async function runTurn(
 
   for (let round = 0; round < config.maxToolRounds; round++) {
     if (await maybeCompact(messages)) options.onCompact?.();
+
+    // Skills are otherwise scanned once at process startup only, so a
+    // skill.json authored mid-session (e.g. the model writing its own skill)
+    // would never show up in `tools` below without a restart. Re-scanning
+    // here — same "don't cache, re-read every time" call as hooks.json —
+    // costs two readdir()s per round, cheap enough to not bother gating it.
+    await loadSkills(ctx.cwd);
 
     // A transient network blip (DNS hiccup, TLS reset, etc.) talking to the
     // LLM endpoint used to crash the whole process — killing an entire REPL

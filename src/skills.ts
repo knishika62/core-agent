@@ -18,6 +18,12 @@ interface SkillToolManifest {
    *  "python" on PATH. That's a per-skill portability concern, not
    *  something this loader can paper over. */
   command: string;
+  /** Overrides DEFAULT_TIMEOUT_MS for this one tool. Needed for skills whose
+   *  own internal poll loop (e.g. ltx_video_faceid waiting on a slow GPU job)
+   *  legitimately runs longer than the 2-minute default — without this, the
+   *  parent execSync() kills the skill process before its own timeout logic
+   *  ever gets a chance to run, no matter how that script is written. */
+  timeout_ms?: number;
 }
 
 interface SkillManifest {
@@ -47,7 +53,7 @@ function makeSkillHandler(skillName: string, skillDir: string, tool: SkillToolMa
         cwd: skillDir,
         input: JSON.stringify(args),
         env: process.env,
-        timeout: DEFAULT_TIMEOUT_MS,
+        timeout: tool.timeout_ms ?? DEFAULT_TIMEOUT_MS,
         maxBuffer: MAX_OUTPUT_BYTES,
       }).toString("utf-8");
       return { content: stdout || `(skill "${skillName}/${tool.name}" produced no output)\n` };
@@ -57,6 +63,18 @@ function makeSkillHandler(skillName: string, skillDir: string, tool: SkillToolMa
     }
   };
 }
+
+// runTurn() re-scans skills every round (see agent.ts) so a skill authored
+// mid-session is usable without a restart — which means scanSkillsDir() now
+// re-discovers every already-loaded skill on every single round too. Without
+// this, registerTool()'s "already exists" warning (meant for a genuine name
+// collision) would instead fire continuously for completely expected
+// re-registration attempts, spamming stderr once per round for the entire
+// session. Tracked by "skillName/toolName" (not just tool name) so distinct
+// skills that happen to collide on tool name are still only warned about once
+// each, not silenced against each other.
+const attemptedSkillTools = new Set<string>();
+const loadedSkillTools = new Set<string>();
 
 /**
  * Discovers skills under <skillsDir>/<skill-name>/skill.json and registers
@@ -84,13 +102,23 @@ async function scanSkillsDir(skillsDir: string): Promise<string[]> {
     }
 
     for (const tool of manifest.tools ?? []) {
+      const label = `${manifest.name}/${tool.name}`;
+      if (attemptedSkillTools.has(label)) {
+        if (loadedSkillTools.has(label)) loaded.push(label);
+        continue;
+      }
+      attemptedSkillTools.add(label);
+
       const definition: ToolDefinition = {
         name: tool.name,
         description: tool.description,
         parameters: tool.parameters ?? { type: "object", properties: {} },
       };
       const ok = registerTool(definition, makeSkillHandler(manifest.name, skillDir, tool));
-      if (ok) loaded.push(`${manifest.name}/${tool.name}`);
+      if (ok) {
+        loaded.push(label);
+        loadedSkillTools.add(label);
+      }
     }
   }
   return loaded;

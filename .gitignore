@@ -20,3 +20,4 @@ md/
 CLAUDE.md
 # Personal, environment-dependent (requires a local ComfyUI server) — never published.
 skills/comfyui_image/
+skills/ltx_video_faceid/

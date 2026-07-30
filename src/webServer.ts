@@ -528,6 +528,14 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<Se
     }
   });
 
+  // Node's http.Server defaults to a 5-minute requestTimeout, which forcibly
+  // ends the connection out from under a long-running /message request —
+  // e.g. a skill tool call that legitimately runs for several minutes (video
+  // generation) — independent of anything in agent.ts or skills.ts. Disabled
+  // here since a turn's actual ceiling is already governed by the tool's own
+  // timeout (skills.ts's per-tool timeout_ms, or the LLM request itself).
+  server.requestTimeout = 0;
+
   const host = options.host ?? config.guiHost;
   const port = options.port ?? config.guiPort;
   await new Promise<void>((resolve) => server.listen(port, host, resolve));
