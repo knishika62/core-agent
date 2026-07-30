@@ -22,9 +22,10 @@ echo "==> Copying skills/ into dist-bin/skills"
 mkdir -p dist-bin/skills
 for skill_dir in skills/*/; do
   name="$(basename "$skill_dir")"
-  # comfyui_image is environment-specific (points at one person's local
-  # ComfyUI server) and deliberately gitignored — never bundle it.
-  if [ "$name" = "comfyui_image" ]; then
+  # comfyui_image / ltx_video_faceid are environment-specific (point at one
+  # person's local ComfyUI server(s), hardcoded LAN IP included) and are
+  # deliberately gitignored — never bundle them.
+  if [ "$name" = "comfyui_image" ] || [ "$name" = "ltx_video_faceid" ]; then
     continue
   fi
   cp -R "$skill_dir" "dist-bin/skills/$name"
