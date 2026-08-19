@@ -144,36 +144,49 @@ describe("POST /api/session/:name/message", () => {
   });
 
   it("gates write behind confirm_request, resolved via /api/confirm/:id", async () => {
-    let callCount = 0;
-    mockLLM(() => {
-      callCount++;
-      return callCount === 1 ? writeToolCallReply("out.txt", "hello") : textReply("done");
-    });
+    // Path deliberately outside both the session cwd and os.tmpdir() — paths
+    // inside either are now auto-approved (see isPathAutoApproved), so this
+    // test must target somewhere else (a real, writable dir) to still
+    // exercise the confirm gate. process.cwd() here is the repo root (the
+    // vitest process's own cwd), which is unrelated to the ephemeral
+    // per-session `cwd` and to os.tmpdir().
+    const outsideDir = path.join(process.cwd(), ".webserver-test-outside");
+    await mkdir(outsideDir, { recursive: true });
+    const outsidePath = path.join(outsideDir, "out.txt");
+    try {
+      let callCount = 0;
+      mockLLM(() => {
+        callCount++;
+        return callCount === 1 ? writeToolCallReply(outsidePath, "hello") : textReply("done");
+      });
 
-    const res = await fetch(`${base}/api/session/confirm-test/message`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ content: "write a file" }),
-    });
-    expect(res.ok).toBe(true);
+      const res = await fetch(`${base}/api/session/confirm-test/message`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ content: "write a file" }),
+      });
+      expect(res.ok).toBe(true);
 
-    const events: any[] = [];
-    let confirmId: string | undefined;
-    for await (const evt of ndjsonEvents(res)) {
-      events.push(evt);
-      if (evt.type === "confirm_request") {
-        confirmId = evt.id;
-        await fetch(`${base}/api/confirm/${confirmId}`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ approved: true }),
-        });
+      const events: any[] = [];
+      let confirmId: string | undefined;
+      for await (const evt of ndjsonEvents(res)) {
+        events.push(evt);
+        if (evt.type === "confirm_request") {
+          confirmId = evt.id;
+          await fetch(`${base}/api/confirm/${confirmId}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ approved: true }),
+          });
+        }
       }
-    }
 
-    expect(confirmId).toBeDefined();
-    expect(events.some((e) => e.type === "tool_result" && e.name === "write")).toBe(true);
-    expect(await readFile(path.join(cwd, "out.txt"), "utf-8")).toBe("hello");
+      expect(confirmId).toBeDefined();
+      expect(events.some((e) => e.type === "tool_result" && e.name === "write")).toBe(true);
+      expect(await readFile(outsidePath, "utf-8")).toBe("hello");
+    } finally {
+      await rm(outsideDir, { recursive: true, force: true });
+    }
   });
 
   it("skips confirmation once auto mode is enabled", async () => {

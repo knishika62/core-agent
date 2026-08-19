@@ -1,7 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { ToolResult } from "../types.js";
-import { requireConfirmation, type ToolContext } from "./context.js";
+import { isPathAutoApproved, requireConfirmation, type ToolContext } from "./context.js";
 
 const UPTO_MARKER = "[upto]";
 const CONTEXT_BEFORE = 5;
@@ -116,13 +116,15 @@ export async function toolEdit(
   const after = text.slice(span.end);
   const newText = before + next + after;
 
-  const denied = await requireConfirmation(
-    ctx,
-    "edit",
-    `Edit ${rawPath}`,
-    `--- old ---\n${old}\n--- new ---\n${next}`,
-  );
-  if (denied) return denied;
+  if (!isPathAutoApproved(ctx.cwd, filePath)) {
+    const denied = await requireConfirmation(
+      ctx,
+      "edit",
+      `Edit ${rawPath}`,
+      `--- old ---\n${old}\n--- new ---\n${next}`,
+    );
+    if (denied) return denied;
+  }
 
   try {
     await writeFile(filePath, newText, "utf-8");

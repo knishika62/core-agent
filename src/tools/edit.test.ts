@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { mkdtemp, mkdir, rm, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { toolEdit } from "./edit.js";
@@ -7,14 +7,22 @@ import { ToolContext } from "./context.js";
 
 let dir: string;
 let ctx: ToolContext;
+// Neither inside `dir` (a tmpdir subdir) nor inside os.tmpdir() itself —
+// process.cwd() here is the repo root, used purely as a real "outside" location.
+let outsideDir: string;
+let outsidePath: string;
 
 beforeEach(async () => {
   dir = await mkdtemp(path.join(tmpdir(), "core-agent-edit-"));
   ctx = new ToolContext(dir);
+  outsideDir = path.join(process.cwd(), ".core-agent-edit-outside-test");
+  await mkdir(outsideDir, { recursive: true });
+  outsidePath = path.join(outsideDir, "f.txt");
 });
 
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
+  await rm(outsideDir, { recursive: true, force: true });
 });
 
 async function write(name: string, content: string) {
@@ -75,12 +83,43 @@ describe("toolEdit", () => {
     expect((await toolEdit({ path: "f.txt", old: "a" }, ctx)).isError).toBe(true);
   });
 
-  it("respects ctx.confirm and can be declined", async () => {
-    await write("f.txt", "a\nb\nc\n");
+  it("respects ctx.confirm and can be declined (path outside cwd/tmp)", async () => {
+    await writeFile(outsidePath, "a\nb\nc\n", "utf-8");
     ctx.confirm = async () => false;
-    const res = await toolEdit({ path: "f.txt", old: "b", new: "BBB" }, ctx);
+    const res = await toolEdit({ path: outsidePath, old: "b", new: "BBB" }, ctx);
     expect(res.isError).toBe(true);
     expect(res.content).toMatch(/not approved/);
-    expect(await read("f.txt")).toBe("a\nb\nc\n"); // unchanged
+    expect(await readFile(outsidePath, "utf-8")).toBe("a\nb\nc\n"); // unchanged
+  });
+
+  it("auto-approves an edit inside cwd without prompting", async () => {
+    await write("f.txt", "a\nb\nc\n");
+    const confirmSpy = vi.fn(async () => false); // would deny if called
+    ctx.confirm = confirmSpy;
+    const res = await toolEdit({ path: "f.txt", old: "b", new: "BBB" }, ctx);
+    expect(res.isError).toBeUndefined();
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(await read("f.txt")).toBe("a\nBBB\nc\n");
+  });
+
+  it("auto-approves an edit inside os.tmpdir() even when cwd is elsewhere", async () => {
+    await write("f.txt", "a\nb\nc\n");
+    const confirmSpy = vi.fn(async () => false);
+    const otherCtx = new ToolContext("/some/unrelated/cwd", confirmSpy);
+    const target = path.join(dir, "f.txt");
+    const res = await toolEdit({ path: target, old: "b", new: "BBB" }, otherCtx);
+    expect(res.isError).toBeUndefined();
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(await read("f.txt")).toBe("a\nBBB\nc\n");
+  });
+
+  it("still requires confirmation for a path outside cwd and tmpdir", async () => {
+    await writeFile(outsidePath, "a\nb\nc\n", "utf-8");
+    const confirmSpy = vi.fn(async () => true);
+    ctx.confirm = confirmSpy;
+    const res = await toolEdit({ path: outsidePath, old: "b", new: "BBB" }, ctx);
+    expect(res.isError).toBeUndefined();
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(await readFile(outsidePath, "utf-8")).toBe("a\nBBB\nc\n");
   });
 });

@@ -1,4 +1,7 @@
 import type { ChildProcess } from "node:child_process";
+import { realpathSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import type { ToolResult } from "../types.js";
 
 export interface MoreState {
@@ -55,6 +58,34 @@ export class ToolContext {
   allocateBashJobId(): number {
     return this.nextBashJobId++;
   }
+}
+
+// Resolves symlinks for containment comparisons only (never for actual I/O
+// paths). Falls back to the input unchanged if it doesn't exist yet (e.g. a
+// new file's parent dir) — fails closed, i.e. still requires confirmation.
+function safeRealpath(p: string): string {
+  try {
+    return realpathSync(p);
+  } catch {
+    return p;
+  }
+}
+
+function isWithin(root: string, target: string): boolean {
+  const rel = path.relative(root, target);
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+}
+
+/** True if absoluteTargetPath resolves to somewhere inside cwd or the OS
+ *  temp dir. Used by write/edit only — bash/skill tools take arbitrary
+ *  command strings with no single extractable path and must keep
+ *  confirming unconditionally, so this is deliberately not wired in there. */
+export function isPathAutoApproved(cwd: string, absoluteTargetPath: string): boolean {
+  const targetDir = safeRealpath(path.dirname(absoluteTargetPath));
+  const targetReal = path.join(targetDir, path.basename(absoluteTargetPath));
+  const cwdReal = safeRealpath(cwd);
+  const tmpReal = safeRealpath(tmpdir());
+  return isWithin(cwdReal, targetReal) || isWithin(tmpReal, targetReal);
 }
 
 /** Returns a rejection ToolResult if the user declines, or null to proceed.
