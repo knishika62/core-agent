@@ -98,7 +98,8 @@ dist-bin/
 5. もう一度起動すれば通常通り動きます。
 
 **プロジェクトごとに設定を変えたい場合**: 特定のフォルダに`cd`してから起動する場合は、
-そのフォルダ直下に`.env`(または`skills/`・`.core-agent/hooks.json`・`.core-agent/cron.json`)を
+そのフォルダ直下に`.env`(または`skills/`・`.core-agent/hooks.json`・`.core-agent/cron.json`・
+`.core-agent/bash-allowlist.json`)を
 置けば、グローバル側より優先されます。普段は上記のグローバル設定だけで十分です。
 (詳しいファイル配置ルールは後述「設定ファイル一覧」参照)
 
@@ -210,7 +211,9 @@ REPL内コマンド(`/help`(`/?`でも可)/`/list`/`/auto`/`/reset`/`/exit`/`!<c
   裏でスケジュール実行される(普段立ち上げっぱなしにするだけでOK)。REPLを開かずヘッドレスに
   常駐させたいだけなら`--cron`専用モードも使える
 - **破壊的操作への確認ゲート**: `write`/`edit`/`bash`(・skillツール)は既定で実行前にy/N確認
-  (`--yes`で無効化可能)
+  (`--yes`で無効化可能)。`write`/`edit`はカレント/一時ディレクトリ配下なら既定で自動承認され、
+  `bash`も`.core-agent/bash-allowlist.json`に列挙したコマンドなら自動承認される(いずれも
+  設定ファイルが無ければ従来通り常に確認)
 - **セッション保存/再開・context圧縮**: 長時間の会話でも履歴が自動要約され、途中で終了しても
   `--session <name>`で再開できる
 - **色分け+簡易Markdownビューア**: 応答を見出し・箇条書き・強調・コードフェンス付きでANSI装飾
@@ -223,7 +226,8 @@ REPL内コマンド(`/help`(`/?`でも可)/`/list`/`/auto`/`/reset`/`/exit`/`!<c
 
 どのJSON/設定ファイルがどこに置かれるかのまとめです。
 
-`.env`・`skills/`・`.core-agent/hooks.json`・`.core-agent/cron.json`は、**起動したディレクトリ
+`.env`・`skills/`・`.core-agent/hooks.json`・`.core-agent/cron.json`・
+`.core-agent/bash-allowlist.json`は、**起動したディレクトリ
 (カレント)を先に見て、そこに無ければ`~/.core-agent`(グローバル、`CORE_AGENT_HOME`で変更可。
 `~`はWindowsでは`C:\Users\<ユーザー名>`)にフォールバック**します。`skills/`だけは両方をスキャンして合算します。
 
@@ -232,6 +236,7 @@ REPL内コマンド(`/help`(`/?`でも可)/`/list`/`/auto`/`/reset`/`/exit`/`!<c
 | `.env` | カレント→`~/.core-agent`(フォールバック) | APIキー・モデル・各種env var | 初回起動時、無ければ`~/.core-agent/.env`にテンプレートを生成 |
 | `.core-agent/hooks.json` | カレントの`.core-agent/`→`~/.core-agent`(フォールバック) | tool実行前後のフック定義 | されない(使う場合のみ手動作成) |
 | `.core-agent/cron.json` | カレントの`.core-agent/`→`~/.core-agent`(フォールバック) | 定期実行ジョブ定義 | されない(使う場合のみ手動作成) |
+| `.core-agent/bash-allowlist.json` | カレントの`.core-agent/`→`~/.core-agent`(フォールバック) | `bash`を確認無しで自動承認するコマンド名の配列(例`["ls","cat"]`) | されない(使う場合のみ手動作成、既定は自動承認なし) |
 | `sessions/<name>.json` | 起動したディレクトリ直下の`sessions/`(フォールバック無し) | 会話履歴(`--session <name>`ごと) | される(初回のやり取り後) |
 | `skills/<name>/skill.json` | カレントの`skills/`+`~/.core-agent/skills/`(両方合算) | skillが提供するツールの宣言 | されない(同梱の`mail_send`・`pdf_export`のみ) |
 | ブラウザプロファイル | `~/.core-agent/browser` | `google_search`/`visit_page`用Chromeプロファイル | される(初回のブラウザ利用時) |

@@ -3,8 +3,9 @@ import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { ToolResult } from "../types.js";
-import { requireConfirmation, type BashJob, type ToolContext } from "./context.js";
+import { isReadOnlyBashCommand, requireConfirmation, type BashJob, type ToolContext } from "./context.js";
 import { config } from "../config.js";
+import { loadBashAllowlist } from "../bashAllowlist.js";
 
 const DEFAULT_TIMEOUT_SEC = 3600;
 const MAX_TIMEOUT_SEC = 24 * 3600;
@@ -184,8 +185,11 @@ export async function toolBash(
     if (match) command = `"${config.pythonPath}" -m pip install${match[1]}`;
   }
 
-  const denied = await requireConfirmation(ctx, "bash", `Run: ${command}`);
-  if (denied) return denied;
+  const allowlist = await loadBashAllowlist(ctx.cwd);
+  if (!isReadOnlyBashCommand(command, allowlist)) {
+    const denied = await requireConfirmation(ctx, "bash", `Run: ${command}`);
+    if (denied) return denied;
+  }
 
   const timeoutSec = clampTimeout(args.timeout_sec);
   const refreshSec = clampRefresh(args.refresh_sec);

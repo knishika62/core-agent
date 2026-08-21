@@ -79,13 +79,41 @@ function isWithin(root: string, target: string): boolean {
 /** True if absoluteTargetPath resolves to somewhere inside cwd or the OS
  *  temp dir. Used by write/edit only — bash/skill tools take arbitrary
  *  command strings with no single extractable path and must keep
- *  confirming unconditionally, so this is deliberately not wired in there. */
+ *  confirming unconditionally, so this is deliberately not wired in there.
+ *  (bash has its own, differently-scoped auto-approve — see
+ *  isReadOnlyBashCommand below — for the narrower case of a single
+ *  known-safe read-only program with no path-scoping at all.) */
 export function isPathAutoApproved(cwd: string, absoluteTargetPath: string): boolean {
   const targetDir = safeRealpath(path.dirname(absoluteTargetPath));
   const targetReal = path.join(targetDir, path.basename(absoluteTargetPath));
   const cwdReal = safeRealpath(cwd);
   const tmpReal = safeRealpath(tmpdir());
   return isWithin(cwdReal, targetReal) || isWithin(tmpReal, targetReal);
+}
+
+// Chaining/redirection/substitution characters — if any appear, the command
+// isn't "just run this one program", so it falls through to the normal
+// confirm gate. Deliberately simple (no per-flag inspection like find's
+// -exec/-delete) so the only way this can be wrong is by under-approving,
+// never over-approving.
+const SHELL_METACHAR_RE = /[;&|<>`$\n]/;
+
+/** True if `command` is a single invocation of a program named in
+ *  `allowlist`, with no shell chaining, redirection, or substitution.
+ *  Which commands count as "safe" is deliberately not core's call — see
+ *  loadBashAllowlist (src/bashAllowlist.ts) for where that list actually
+ *  comes from (a user-edited config file, same pattern as hooks.json/
+ *  cron.json: absent by default, opt-in). Used by bash only — unlike
+ *  isPathAutoApproved this is deliberately NOT scoped to cwd/tmp, because
+ *  the read/search/list tools it parallels already read any path on the
+ *  filesystem with zero confirmation gate; matching that trust level for
+ *  allowlisted bash commands adds no new risk. */
+export function isReadOnlyBashCommand(command: string, allowlist: string[]): boolean {
+  if (allowlist.length === 0) return false;
+  if (SHELL_METACHAR_RE.test(command)) return false;
+  const first = command.trim().split(/\s+/)[0];
+  if (!first) return false;
+  return allowlist.includes(path.basename(first));
 }
 
 /** Returns a rejection ToolResult if the user declines, or null to proceed.

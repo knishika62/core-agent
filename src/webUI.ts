@@ -100,6 +100,15 @@ export const WEB_UI_HTML = String.raw`<!doctype html>
   .msg code { background: rgba(127,127,127,0.2); padding: 0 3px; border-radius: 3px; }
   .msg pre { background: rgba(127,127,127,0.15); padding: 8px; border-radius: 6px; overflow-x: auto; }
   .msg pre code { background: none; padding: 0; }
+  .code-block { margin: 4px 0; }
+  .code-block-header { display: flex; justify-content: flex-end; padding: 2px 2px; }
+  .code-block .msg pre, .code-block pre { margin: 0; }
+  .code-copy-btn {
+    padding: 1px 8px; font-size: 11px; border: 1px solid var(--border); border-radius: 4px;
+    background: var(--bg); color: var(--dim); opacity: 0.7; cursor: pointer;
+  }
+  .code-copy-btn:hover { opacity: 1; color: var(--fg); }
+  .code-copy-btn.copied { opacity: 1; color: #4caf50; border-color: #4caf50; }
   .msg h1, .msg h2, .msg h3, .msg h4, .msg h5, .msg h6 { margin: 0.6em 0 0.3em; line-height: 1.25; }
   .msg h1 { font-size: 1.3em; }
   .msg h2 { font-size: 1.2em; }
@@ -381,7 +390,10 @@ export const WEB_UI_HTML = String.raw`<!doctype html>
           i++;
         }
         if (i < lines.length) i++; // consume closing fence, if it has arrived yet
-        html += "<pre><code>" + escapeHtml(codeLines.join("\n")) + "</code></pre>";
+        var codeText = codeLines.join("\n");
+        html += '<div class="code-block"><div class="code-block-header">' +
+          '<button class="code-copy-btn" type="button" title="Copy">Copy</button></div><pre><code>' +
+          escapeHtml(codeText) + "</code></pre></div>";
         continue;
       }
 
@@ -950,6 +962,53 @@ export const WEB_UI_HTML = String.raw`<!doctype html>
   el.lightboxClose.addEventListener("click", closeLightbox);
   el.lightboxOverlay.addEventListener("click", function (e) {
     if (e.target === el.lightboxOverlay || e.target === el.lightboxContent) closeLightbox();
+  });
+
+  // navigator.clipboard requires a secure context (https, or localhost) —
+  // the GUI is normally reached over plain http on a LAN IP (see docs/gui.md
+  // on no-auth/LAN-only), where navigator.clipboard is simply undefined.
+  // document.execCommand("copy") on a throwaway textarea still works there.
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function (resolve, reject) {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { /* ok stays false */ }
+      document.body.removeChild(ta);
+      if (ok) resolve(); else reject(new Error("copy failed"));
+    });
+  }
+
+  // Delegated on #log (not per-block) since code blocks are (re-)rendered
+  // repeatedly as streamed markdown is re-parsed — see renderMarkdown's
+  // comment on why it re-parses the whole message on every delta.
+  el.log.addEventListener("click", function (e) {
+    var btn = e.target.closest && e.target.closest(".code-copy-btn");
+    if (!btn) return;
+    var block = btn.closest(".code-block");
+    var code = block && block.querySelector("pre code");
+    if (!code) return;
+    copyText(code.textContent).then(function () {
+      var prevLabel = btn.textContent;
+      btn.textContent = "Copied";
+      btn.classList.add("copied");
+      setTimeout(function () {
+        btn.textContent = prevLabel;
+        btn.classList.remove("copied");
+      }, 1500);
+    }).catch(function () {
+      var prevLabel = btn.textContent;
+      btn.textContent = "Failed";
+      setTimeout(function () { btn.textContent = prevLabel; }, 1500);
+    });
   });
 
   // Esc-to-interrupt, mirroring the TUI's mid-stream Esc handling. Guarded

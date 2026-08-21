@@ -9,6 +9,7 @@ dist/
 dist-bin/macos-arm64/
 dist-bin/windows-x64/
 dist-bin/skills/
+dist-bin/*.zip
 bundle/
 .env
 sessions/
