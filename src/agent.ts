@@ -16,6 +16,11 @@ export interface RunTurnOptions {
    *  discarded), and the turn ends there — no tool call that was still
    *  being assembled runs half-specified. */
   abortSignal?: AbortSignal;
+  /** Stable id for the current conversation, forwarded to the LLM client.
+   *  Only meaningful when the endpoint is opencode.ai's "go" tier — see
+   *  llmClient.ts's opencodeGoHeaders. Typically the core-agent session
+   *  name (cli.ts/webServer.ts/cronDaemon.ts each already have one). */
+  sessionId?: string;
 }
 
 /**
@@ -36,7 +41,7 @@ export async function runTurn(
   };
 
   for (let round = 0; round < config.maxToolRounds; round++) {
-    if (await maybeCompact(messages)) options.onCompact?.();
+    if (await maybeCompact(messages, options.sessionId)) options.onCompact?.();
 
     // Skills are otherwise scanned once at process startup only, so a
     // skill.json authored mid-session (e.g. the model writing its own skill)
@@ -55,6 +60,7 @@ export async function runTurn(
         tools: toolDefinitions,
         onTextDelta: options.onTextDelta,
         signal: options.abortSignal,
+        sessionId: options.sessionId,
       });
     } catch (err) {
       options.onError?.(err);

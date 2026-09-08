@@ -1,6 +1,21 @@
+import pkg from "../package.json" with { type: "json" };
 import type { Message, ToolCall, ToolDefinition } from "./types.js";
 
 export type Protocol = "openai" | "anthropic";
+
+// opencode.ai's "go" tier (https://opencode.ai/docs/go/#where-can-i-use-it)
+// asks for a stable per-conversation session id and a recognizable
+// User-Agent on every request. Scoped to this exact base URL so it's a
+// no-op for every other OpenAI/Anthropic-compatible endpoint — nothing
+// core-agent-specific should leak into requests aimed elsewhere.
+const OPENCODE_GO_BASE_URL = "https://opencode.ai/zen/go/v1";
+
+function opencodeGoHeaders(endpoint: EndpointConfig, sessionId?: string): Record<string, string> {
+  if (endpoint.baseUrl !== OPENCODE_GO_BASE_URL) return {};
+  const headers: Record<string, string> = { "User-Agent": `core-agent/${pkg.version}` };
+  if (sessionId) headers["x-opencode-session"] = sessionId;
+  return headers;
+}
 
 interface EndpointConfig {
   baseUrl: string;
@@ -27,6 +42,9 @@ interface CompletionOptions {
   tools?: ToolDefinition[];
   onTextDelta?: (text: string) => void;
   signal?: AbortSignal;
+  /** A stable id for the current conversation (core-agent session name).
+   *  Only used for opencode.ai's "go" tier — see opencodeGoHeaders above. */
+  sessionId?: string;
 }
 
 function toOpenAiMessages(messages: Message[]) {
@@ -115,11 +133,12 @@ function toAnthropicTools(tools: ToolDefinition[] | undefined) {
   }));
 }
 
-function anthropicHeaders(endpoint: EndpointConfig): Record<string, string> {
+function anthropicHeaders(endpoint: EndpointConfig, sessionId?: string): Record<string, string> {
   return {
     "Content-Type": "application/json",
     "x-api-key": endpoint.apiKey,
     "anthropic-version": "2023-06-01",
+    ...opencodeGoHeaders(endpoint, sessionId),
   };
 }
 
@@ -131,7 +150,7 @@ async function anthropicChatCompletion(
   const { system, messages: amsgs } = toAnthropicMessages(messages);
   const res = await fetch(`${endpoint.baseUrl}/messages`, {
     method: "POST",
-    headers: anthropicHeaders(endpoint),
+    headers: anthropicHeaders(endpoint, options.sessionId),
     body: JSON.stringify({
       model: endpoint.model,
       system: system || undefined,
@@ -165,7 +184,7 @@ async function anthropicChatCompletionStream(
   const { system, messages: amsgs } = toAnthropicMessages(messages);
   const res = await fetch(`${endpoint.baseUrl}/messages`, {
     method: "POST",
-    headers: anthropicHeaders(endpoint),
+    headers: anthropicHeaders(endpoint, options.sessionId),
     body: JSON.stringify({
       model: endpoint.model,
       system: system || undefined,
@@ -251,6 +270,7 @@ export async function chatCompletion(
     headers: {
       "Content-Type": "application/json",
       ...(endpoint.apiKey ? { Authorization: `Bearer ${endpoint.apiKey}` } : {}),
+      ...opencodeGoHeaders(endpoint, options.sessionId),
     },
     body: JSON.stringify({
       model: endpoint.model,
@@ -290,6 +310,7 @@ export async function chatCompletionStream(
     headers: {
       "Content-Type": "application/json",
       ...(endpoint.apiKey ? { Authorization: `Bearer ${endpoint.apiKey}` } : {}),
+      ...opencodeGoHeaders(endpoint, options.sessionId),
     },
     body: JSON.stringify({
       model: endpoint.model,

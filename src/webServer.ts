@@ -468,6 +468,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<Se
         onCompact: () => writeEvent(res, { type: "compact" }),
         onError: (err) => writeEvent(res, { type: "error", message: err instanceof Error ? err.message : String(err) }),
         abortSignal: session.currentAbort.signal,
+        sessionId: name,
       });
       if (session.currentAbort.signal.aborted) writeEvent(res, { type: "aborted" });
     } finally {

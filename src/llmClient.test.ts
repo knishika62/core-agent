@@ -51,6 +51,58 @@ describe("chatCompletionStream (OpenAI protocol)", () => {
   });
 });
 
+describe("opencode.ai 'go' tier headers", () => {
+  it("adds x-opencode-session and User-Agent only for the exact opencode go base URL", async () => {
+    let capturedHeaders: Record<string, string> = {};
+    globalThis.fetch = vi.fn(async (_url: any, init: any) => {
+      capturedHeaders = init.headers;
+      return sseResponse([{ choices: [{ delta: {}, finish_reason: "stop" }] }, "[DONE]"]);
+    }) as any;
+
+    await chatCompletionStream(
+      { baseUrl: "https://opencode.ai/zen/go/v1", apiKey: "k", model: "m" },
+      [{ role: "user", content: "hi" }],
+      { sessionId: "my-session" },
+    );
+
+    expect(capturedHeaders["x-opencode-session"]).toBe("my-session");
+    expect(capturedHeaders["User-Agent"]).toMatch(/^core-agent\//);
+  });
+
+  it("omits opencode headers for any other base URL, even with a sessionId set", async () => {
+    let capturedHeaders: Record<string, string> = {};
+    globalThis.fetch = vi.fn(async (_url: any, init: any) => {
+      capturedHeaders = init.headers;
+      return sseResponse([{ choices: [{ delta: {}, finish_reason: "stop" }] }, "[DONE]"]);
+    }) as any;
+
+    await chatCompletionStream(
+      { baseUrl: "https://api.openai.example/v1", apiKey: "k", model: "m" },
+      [{ role: "user", content: "hi" }],
+      { sessionId: "my-session" },
+    );
+
+    expect(capturedHeaders["x-opencode-session"]).toBeUndefined();
+    expect(capturedHeaders["User-Agent"]).toBeUndefined();
+  });
+
+  it("omits x-opencode-session (but keeps User-Agent) when no sessionId is given", async () => {
+    let capturedHeaders: Record<string, string> = {};
+    globalThis.fetch = vi.fn(async (_url: any, init: any) => {
+      capturedHeaders = init.headers;
+      return sseResponse([{ choices: [{ delta: {}, finish_reason: "stop" }] }, "[DONE]"]);
+    }) as any;
+
+    await chatCompletionStream(
+      { baseUrl: "https://opencode.ai/zen/go/v1", apiKey: "k", model: "m" },
+      [{ role: "user", content: "hi" }],
+    );
+
+    expect(capturedHeaders["x-opencode-session"]).toBeUndefined();
+    expect(capturedHeaders["User-Agent"]).toMatch(/^core-agent\//);
+  });
+});
+
 describe("chatCompletionStream (Anthropic protocol)", () => {
   it("converts messages, parses SSE events, and extracts tool_use", async () => {
     let capturedBody: any;

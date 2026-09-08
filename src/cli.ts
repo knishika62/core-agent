@@ -300,6 +300,7 @@ async function main() {
         console.log(color.error(`\n[LLM request failed: ${err instanceof Error ? err.message : String(err)}]`));
       },
       abortSignal: currentAbort.signal,
+      sessionId: sessionName,
     });
     if (currentAbort.signal.aborted) {
       renderer.flush();

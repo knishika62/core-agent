@@ -40,6 +40,7 @@ async function runCronJob(cwd: string, systemPrompt: string, job: CronJob): Prom
     },
     onCompact: () => console.log(`${tag} history compacted`),
     onError: (err) => console.error(`${tag} LLM request failed:`, err instanceof Error ? err.message : err),
+    sessionId: sessionName,
   });
 
   await saveSession(sessionName, messages);

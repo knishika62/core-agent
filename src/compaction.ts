@@ -34,7 +34,7 @@ export function findSafeCutIndex(messages: Message[], minKeep: number): number {
  * model's context window. Mutates `messages` in place so callers holding
  * the same array reference (cli.ts, session persistence) stay in sync.
  */
-export async function maybeCompact(messages: Message[]): Promise<boolean> {
+export async function maybeCompact(messages: Message[], sessionId?: string): Promise<boolean> {
   if (estimateTokens(messages) < config.maxContextTokens) return false;
 
   const cutIndex = findSafeCutIndex(messages, MIN_KEEP_MESSAGES);
@@ -73,7 +73,7 @@ export async function maybeCompact(messages: Message[]): Promise<boolean> {
           "original messages, so don't drop anything a later turn might need.",
       },
       { role: "user", content: transcript },
-    ]);
+    ], { sessionId });
     summaryContent = result.content;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
